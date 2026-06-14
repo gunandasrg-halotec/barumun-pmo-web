@@ -1,12 +1,15 @@
-import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import LoadingState from '../components/ui/LoadingState';
-
+import { Navigate, Outlet } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import LoadingState from "../components/ui/LoadingState";
+import { PropsWithChildren } from "react";
 interface Props {
   allowedRoles?: string[];
 }
 
-export default function ProtectedRoute({ allowedRoles }: Props) {
+export default function ProtectedRoute({
+  allowedRoles,
+  children,
+}: PropsWithChildren<Props>) {
   const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) return <LoadingState message="Memuat..." />;
@@ -14,12 +17,12 @@ export default function ProtectedRoute({ allowedRoles }: Props) {
 
   if (allowedRoles && user && !allowedRoles.includes(user.role.name)) {
     return (
-      <div style={{ padding: 40, textAlign: 'center' }}>
+      <div style={{ padding: 40, textAlign: "center" }}>
         <h2>🔒 Akses Ditolak</h2>
         <p>Anda tidak memiliki hak akses ke halaman ini.</p>
       </div>
     );
   }
 
-  return <Outlet />;
+  return children;
 }
