@@ -2,20 +2,29 @@
 
 import axios, { AxiosError, type AxiosInstance } from "axios";
 
-const BASE_URL = import.meta.env.VITE_BACKEND + "/api/v1";
+const TARGET_HOST = import.meta.env.VITE_API_URL || "http://8.219.106.148:8021";
+const BASE_URL = `${TARGET_HOST.trim()}/api/v1`;
 
 const api: AxiosInstance = axios.create({
   baseURL: BASE_URL,
-  headers: { "Content-Type": "application/json", Accept: "application/json" },
-  withCredentials: true,
+  headers: { "Content-Type": "application/json", Accept: "application/json" } 
+  // withCredentials: true,
 });
 
-// Attach token from localStorage
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("auth_token");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+// Attach token from localStorage safely
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("auth_token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    // This error handler block is mandatory in production Axios setups
+    return Promise.reject(error);
+  }
+);
 
 // Redirect to login on 401
 api.interceptors.response.use(
@@ -33,7 +42,7 @@ api.interceptors.response.use(
     }
     //when token is expired but still in refresh date
     //update the token.
-    
+
     if (authField && authField.startsWith("Bearer ")) {
       const newToken = authField.replace(/^Bearer\s+/, "");
       localStorage.setItem("auth_token", newToken);
