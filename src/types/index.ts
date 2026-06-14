@@ -22,7 +22,7 @@ export interface AuthState {
 
 // ─── Project ─────────────────────────────────────────────────────────────────
 
-export type ProjectStatus = 'ACTIVE' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED';
+export type ProjectStatus = "ACTIVE" | "COMPLETED" | "ON_HOLD" | "CANCELLED";
 
 export interface ActiveWbdVersion {
   id: string;
@@ -50,11 +50,11 @@ export interface Project {
 // ─── WBD ─────────────────────────────────────────────────────────────────────
 
 export type WbdVersionStatus =
-  | 'DRAFT'
-  | 'PENDING_DIRECTOR_APPROVAL'
-  | 'FINAL_APPROVED'
-  | 'REJECTED'
-  | 'SUPERSEDED';
+  | "DRAFT"
+  | "PENDING_DIRECTOR_APPROVAL"
+  | "FINAL_APPROVED"
+  | "REJECTED"
+  | "SUPERSEDED";
 
 export interface WbdVersion {
   id: string;
@@ -73,7 +73,7 @@ export interface WbdVersion {
   created_at: string;
 }
 
-export type NodeType = 'GROUP' | 'ITEM';
+export type NodeType = "GROUP" | "ITEM";
 
 export interface WbdNode {
   id: string;
@@ -100,11 +100,11 @@ export interface WbdNode {
 // ─── Progress ────────────────────────────────────────────────────────────────
 
 export type ProgressStatus =
-  | 'DRAFT'
-  | 'PENDING_PM_APPROVAL'
-  | 'AUTO_APPROVED'
-  | 'APPROVED'
-  | 'REJECTED';
+  | "DRAFT"
+  | "PENDING_PM_APPROVAL"
+  | "AUTO_APPROVED"
+  | "APPROVED"
+  | "REJECTED";
 
 export interface ProgressEntry {
   id: string;
@@ -136,7 +136,7 @@ export interface ProgressEntry {
 
 // ─── Cost ─────────────────────────────────────────────────────────────────────
 
-export type CostStatus = 'DRAFT' | 'REVIEW' | 'APPROVED' | 'REJECTED';
+export type CostStatus = "DRAFT" | "REVIEW" | "APPROVED" | "REJECTED";
 
 export interface ActualCostSummary {
   id: string;
@@ -172,9 +172,9 @@ export interface ActualCostTransaction {
 
 // ─── Files ───────────────────────────────────────────────────────────────────
 
-export type FileType = 'DOCUMENT' | 'IMAGE';
-export type FileStatus = 'ACTIVE' | 'ARCHIVED';
-export type RelatedEntityType = 'WBD_NODE' | 'PROGRESS_ENTRY';
+export type FileType = "DOCUMENT" | "IMAGE";
+export type FileStatus = "ACTIVE" | "ARCHIVED";
+export type RelatedEntityType = "WBD_NODE" | "PROGRESS_ENTRY";
 
 export interface FileCategory {
   id: string;
@@ -254,7 +254,7 @@ export interface CostAnalysisItem {
 
 // ─── Report ───────────────────────────────────────────────────────────────────
 
-export type ReportType = 'WEEKLY' | 'MONTHLY' | 'COST' | 'PROGRESS' | 'SUMMARY';
+export type ReportType = "WEEKLY" | "MONTHLY" | "COST" | "PROGRESS" | "SUMMARY";
 
 export interface ReportRecord {
   id: string;
@@ -265,7 +265,12 @@ export interface ReportRecord {
   file_path: string;
   generated_by: { id: string; full_name: string } | null;
   generated_at: string;
-  status: 'FINAL' | 'DELETED';
+  status: "FINAL" | "DELETED";
+}
+
+export interface LoginResponse<T> {
+  user: User;
+  token: string;
 }
 
 // ─── API Responses ────────────────────────────────────────────────────────────
@@ -291,11 +296,11 @@ export interface PaginatedResponse<T> {
 // ─── Role Names ───────────────────────────────────────────────────────────────
 
 export const ROLES = {
-  ADMINISTRATOR_SISTEM: 'Administrator Sistem',
-  PROJECT_MANAGER: 'Project Manager',
-  DIREKSI: 'Direksi',
-  FINANCE: 'Finance',
-  ADMIN_PROYEK: 'Admin Proyek',
+  ADMINISTRATOR_SISTEM: "Administrator Sistem",
+  PROJECT_MANAGER: "Project Manager",
+  DIREKSI: "Direksi",
+  FINANCE: "Finance",
+  ADMIN_PROYEK: "Admin Proyek",
 } as const;
 
 export type RoleName = (typeof ROLES)[keyof typeof ROLES];

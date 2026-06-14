@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { authService } from '../services/authService';
-import type { User, ROLES } from '../types';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { authService } from "../services/authService";
+import type { User, ROLES } from "../types";
 
 interface AuthContextType {
   user: User | null;
@@ -30,13 +30,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
-    const stored = localStorage.getItem('auth_user');
+    const stored = localStorage.getItem("auth_user");
     return stored ? JSON.parse(stored) : null;
   });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem("auth_token");
     if (!token) {
       setIsLoading(false);
       return;
@@ -44,12 +44,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     authService
       .me()
       .then((res) => {
-        setUser(res.data);
-        localStorage.setItem('auth_user', JSON.stringify(res.data));
+        setUser(res);
+        localStorage.setItem("auth_user", JSON.stringify(res));
       })
       .catch(() => {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("auth_user");
         setUser(null);
       })
       .finally(() => setIsLoading(false));
@@ -57,9 +57,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const res = await authService.login(email, password);
-    localStorage.setItem('auth_token', res.data.token);
-    localStorage.setItem('auth_user', JSON.stringify(res.data.user));
-    setUser(res.data.user);
+    localStorage.setItem("auth_token", res.token);
+    localStorage.setItem("auth_user", JSON.stringify(res.user));
+    setUser(res.user);
   };
 
   const logout = async () => {
@@ -68,11 +68,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const hasRole = (role: string) => user?.role?.name === role;
-  const isAdminSistem = () => hasRole('Administrator Sistem');
-  const isProjectManager = () => hasRole('Project Manager');
-  const isDireksi = () => hasRole('Direksi');
-  const isFinance = () => hasRole('Finance');
-  const isAdminProyek = () => hasRole('Admin Proyek');
+  const isAdminSistem = () => hasRole("Administrator Sistem");
+  const isProjectManager = () => hasRole("Project Manager");
+  const isDireksi = () => hasRole("Direksi");
+  const isFinance = () => hasRole("Finance");
+  const isAdminProyek = () => hasRole("Admin Proyek");
 
   const canInputProgress = () => isProjectManager() || isAdminProyek();
   const canInputCost = () => isFinance() || isAdminProyek();
@@ -116,6 +116,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth(): AuthContextType {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
