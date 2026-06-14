@@ -1,0 +1,1 @@
+docker compose -f staging-compose.yaml --env-file ./docker/staging/.env.example down

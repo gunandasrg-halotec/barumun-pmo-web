@@ -1,0 +1,12 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: ./docker/staging/Dockerfile
+    container_name: pmo-app-web
+    image: pmo/web:dev
+    env_file:
+      - docker/staging/.env.example
+    ports:
+      - "${VITE_APP_PORT:-80}:80"
+    restart: unless-stopped
