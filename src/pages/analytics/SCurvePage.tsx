@@ -40,9 +40,9 @@ export default function SCurvePage() {
                   <YAxis yAxisId="volume" tick={{ fontSize: 11 }} tickFormatter={(v) => formatNumber(v, 0)} />
                   <YAxis yAxisId="cost" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `Rp ${(v / 1000000).toFixed(0)}M`} />
                   <Tooltip
-                    formatter={(value: any, name: string) => [
-                      name.includes('cost') ? formatCurrency(value) : formatNumber(value),
-                      name,
+                    formatter={(value: any, name: any) => [
+                      String(name).includes('cost') ? formatCurrency(value) : formatNumber(value),
+                      String(name ?? ''),
                     ]}
                   />
                   <Legend />
