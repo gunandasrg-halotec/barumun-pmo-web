@@ -2,7 +2,7 @@ import { Outlet, useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import Sidebar from './Sidebar';
 import { useAuth } from '../context/AuthContext';
-import projectService from '../services/projectService';
+import {projectService} from '../services/projectService';
 
 export default function AppLayout() {
   const { user } = useAuth();
@@ -11,13 +11,13 @@ export default function AppLayout() {
 
   const { data: projects } = useQuery({
     queryKey: ['projects-list-topbar'],
-    queryFn: () => projectService.getProjects(),
+    queryFn: () => projectService.list(),
     select: (res: any) => res.data ?? [],
   });
 
   const activeProject = projects?.find((p: any) => p.id === projectId);
 
-  const initials = user?.full_name
+  const initials = user?.full_name  
     ? user.full_name.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
     : 'U';
 
@@ -65,7 +65,7 @@ export default function AppLayout() {
 
           <div className="top-actions glass">
             <div className="chip">Notifikasi</div>
-            <div className="chip">{user?.role?.role_name ?? 'User'}</div>
+            <div className="chip">{user?.role?.name ?? 'User'}</div>
             <div className="avatar">{initials}</div>
           </div>
         </div>
