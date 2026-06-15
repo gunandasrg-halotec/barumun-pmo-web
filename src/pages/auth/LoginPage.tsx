@@ -1,170 +1,107 @@
-import { useState, SubmitEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
-import { extractError } from "../../utils/format";
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { extractError } from '../../utils/format';
+
+const DEMO_ACCOUNTS = [
+  ['pm@company.com',         'Project Manager'],
+  ['direksi@company.com',    'Direksi'],
+  ['finance@company.com',    'Finance'],
+  ['adminproyek@company.com','Admin Proyek'],
+  ['admin@company.com',      'Administrator Sistem'],
+];
 
 export default function LoginPage() {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail]       = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError]       = useState('');
+  const [loading, setLoading]   = useState(false);
 
   if (isAuthenticated) {
-    navigate("/projects", { replace: true });
+    navigate('/projects', { replace: true });
     return null;
   }
 
-  const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError("");
-    setIsLoading(true);
+    setError('');
+    setLoading(true);
     try {
       await login(email, password);
-      navigate("/projects");
+      navigate('/projects');
     } catch (err) {
-      const msg = extractError(err);
-      setError(msg);
+      setError(extractError(err));
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
+  }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
-        padding: 16,
-      }}
-    >
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 16,
-          padding: "40px 36px",
-          width: "100%",
-          maxWidth: 400,
-          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-        }}
-      >
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div
-            style={{
-              fontSize: 36,
-              marginBottom: 8,
-            }}
-          >
-            🏗️
+    <div className="login-page">
+      <div className="login-card">
+        {/* Brand */}
+        <div style={{ marginBottom: 32, textAlign: 'center' }}>
+          <div className="brand-tag" style={{ justifyContent: 'center', marginBottom: 12 }}>
+            Plantation PMO
           </div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
-            Project Management
-          </h1>
-          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-            Masuk untuk melanjutkan
+          <h2 style={{ fontSize: 24, color: 'var(--green-800)', marginBottom: 6 }}>
+            Replanting Control Center
+          </h2>
+          <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5 }}>
+            Masuk untuk mengelola proyek replanting Anda
           </p>
         </div>
 
         {error && (
-          <div className="error-state" style={{ marginBottom: 16 }}>
-            {error}
-          </div>
+          <div className="danger-box" style={{ marginBottom: 16 }}>{error}</div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label">Email</label>
+        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 14 }}>
+          <div className="field">
+            <label>Email</label>
             <input
               type="email"
-              className="form-control"
-              placeholder="email@perusahaan.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="email@perusahaan.com"
               required
               autoFocus
             />
           </div>
-
-          <div className="form-group">
-            <label className="form-label">Password</label>
+          <div className="field">
+            <label>Password</label>
             <input
               type="password"
-              className="form-control"
-              placeholder="Masukkan password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Masukkan password"
               required
             />
           </div>
-
-          <button
-            type="submit"
-            className="btn btn-primary"
-            style={{
-              width: "100%",
-              padding: "10px",
-              fontSize: 14,
-              marginTop: 8,
-            }}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <span className="flex-row" style={{ justifyContent: "center" }}>
-                <span className="spinner spinner-sm" /> Masuk...
-              </span>
-            ) : (
-              "Masuk"
-            )}
+          <button type="submit" className="btn" style={{ width: '100%', padding: '13px' }} disabled={loading}>
+            {loading ? 'Memproses...' : 'Masuk'}
           </button>
         </form>
 
-        <div
-          style={{
-            marginTop: 24,
-            padding: "12px 16px",
-            background: "#f8fafc",
-            borderRadius: 8,
-            fontSize: 12,
-          }}
-        >
-          <strong
-            style={{
-              display: "block",
-              marginBottom: 6,
-              color: "var(--text-muted)",
-            }}
-          >
-            Demo Accounts:
-          </strong>
-          {[
-            ["pm@company.com", "Project Manager"],
-            ["direksi@company.com", "Direksi"],
-            ["finance@company.com", "Finance"],
-            ["adminproyek@company.com", "Admin Proyek"],
-            ["admin@company.com", "Admin Sistem"],
-          ].map(([email, role]) => (
-            <div
-              key={email}
-              style={{
-                cursor: "pointer",
-                color: "var(--primary)",
-                marginBottom: 2,
-              }}
-              onClick={() => {
-                setEmail(email);
-                setPassword("password123");
-              }}
-            >
-              {email}{" "}
-              <span style={{ color: "var(--text-muted)" }}>({role})</span>
-            </div>
-          ))}
-          <div style={{ color: "var(--text-muted)", marginTop: 4 }}>
-            Password: password123
+        {/* Demo accounts */}
+        <div className="panel-block" style={{ marginTop: 20 }}>
+          <h4 style={{ fontSize: 13, marginBottom: 10 }}>Akun Demo</h4>
+          <div style={{ display: 'grid', gap: 6 }}>
+            {DEMO_ACCOUNTS.map(([em, role]) => (
+              <div
+                key={em}
+                style={{ cursor: 'pointer', fontSize: 12, padding: '6px 10px', borderRadius: 10, background: 'rgba(220,234,213,0.3)' }}
+                onClick={() => { setEmail(em); setPassword('password123'); }}
+              >
+                <span style={{ color: 'var(--green-700)', fontWeight: 600 }}>{em}</span>
+                <span style={{ color: 'var(--muted)', marginLeft: 6 }}>— {role}</span>
+              </div>
+            ))}
+            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, marginBottom: 0 }}>
+              Password semua akun: <strong>password123</strong>
+            </p>
           </div>
         </div>
       </div>

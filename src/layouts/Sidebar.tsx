@@ -1,129 +1,86 @@
 import { NavLink, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const Icon = ({ d }: { d: string }) => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d={d} />
-  </svg>
-);
+interface NavItem {
+  to: string;
+  label: string;
+  sub: string;
+}
 
-const ICONS = {
-  home: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z',
-  project: 'M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z',
-  wbd: 'M3 3h18v18H3z M9 3v18 M3 9h18 M3 15h18',
-  gantt: 'M3 4h18M3 8h10M3 12h14M3 16h8M3 20h12',
-  progress: 'M22 11.08V12a10 10 0 11-5.93-9.14',
-  cost: 'M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6',
-  file: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z',
-  dashboard: 'M18 20V10M12 20V4M6 20v-6',
-  scurve: 'M3 20c1-4 3-8 5-10s4-3 6-2 4 4 7 4',
-  report: 'M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h4 M15 3h4a2 2 0 012 2v10a2 2 0 01-2 2h-4 M12 8v8 M8 12h8',
-  admin: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z',
-};
+function NavBtn({ to, label, sub }: NavItem) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) => `nav-btn${isActive ? ' active' : ''}`}
+    >
+      <strong>{label}</strong>
+      <span>{sub}</span>
+    </NavLink>
+  );
+}
 
 export default function Sidebar() {
   const { user, logout, isAdminSistem, isDireksi } = useAuth();
   const { projectId } = useParams();
 
+  const initials = user?.full_name
+    ? user.full_name.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
+    : 'U';
+
   return (
-    <div className="sidebar">
-      <div className="sidebar-header">
-        <div className="sidebar-logo">
-          Project Management
-          <small>System v1.0</small>
-        </div>
+    <aside className="sidebar">
+      <div className="brand">
+        <div className="brand-tag">Plantation PMO</div>
+        <h1>Replanting Control Center</h1>
+        <p>Aplikasi manajemen proyek replanting: WBD, biaya, jadwal, dan gantt pekerjaan.</p>
       </div>
 
       <nav className="sidebar-nav">
-        {/* Global navigation */}
-        <div className="nav-section">
-          <div className="nav-section-label">Menu Utama</div>
-          <NavLink to="/projects" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <Icon d={ICONS.project} /> Daftar Proyek
-          </NavLink>
-          {isAdminSistem() && (
-            <NavLink to="/admin" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <Icon d={ICONS.admin} /> Administrasi
-            </NavLink>
-          )}
-          {isDireksi() && (
-            <NavLink to="/wbd-approvals" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <Icon d={ICONS.wbd} /> Persetujuan WBD
-            </NavLink>
-          )}
-        </div>
+        <div className="menu-group-title">Projects</div>
+        <NavBtn to="/projects" label="Dashboard" sub="Ringkasan KPI dan status proyek" />
 
-        {/* Project-specific navigation */}
         {projectId && (
-          <div className="nav-section">
-            <div className="nav-section-label">Proyek Aktif</div>
-            <NavLink
-              to={`/projects/${projectId}/dashboard`}
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              <Icon d={ICONS.dashboard} /> Dashboard
-            </NavLink>
-            <NavLink
-              to={`/projects/${projectId}/wbd`}
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              <Icon d={ICONS.wbd} /> WBD
-            </NavLink>
-            <NavLink
-              to={`/projects/${projectId}/gantt`}
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              <Icon d={ICONS.gantt} /> Gantt Chart
-            </NavLink>
-            <NavLink
-              to={`/projects/${projectId}/progress`}
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              <Icon d={ICONS.progress} /> Progress
-            </NavLink>
-            <NavLink
-              to={`/projects/${projectId}/costs`}
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              <Icon d={ICONS.cost} /> Biaya Aktual
-            </NavLink>
-            <NavLink
-              to={`/projects/${projectId}/files`}
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              <Icon d={ICONS.file} /> File Repository
-            </NavLink>
-            <NavLink
-              to={`/projects/${projectId}/s-curve`}
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              <Icon d={ICONS.scurve} /> S-Curve
-            </NavLink>
-            <NavLink
-              to={`/projects/${projectId}/cost-analysis`}
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              <Icon d={ICONS.cost} /> Analisis Biaya
-            </NavLink>
-            <NavLink
-              to={`/projects/${projectId}/reports`}
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              <Icon d={ICONS.report} /> Laporan
-            </NavLink>
-          </div>
+          <>
+            <div className="menu-group-title">Planning</div>
+            <NavBtn to={`/projects/${projectId}/wbd`}   label="WBD"   sub="Struktur pekerjaan & biaya" />
+            <NavBtn to={`/projects/${projectId}/gantt`} label="Gantt" sub="Timeline pekerjaan" />
+
+            <div className="menu-group-title">Execution</div>
+            <NavBtn to={`/projects/${projectId}/progress`} label="Progress"  sub="Input realisasi lapangan" />
+            <NavBtn to={`/projects/${projectId}/files`}    label="Documents" sub="Kontrak & bukti lapangan" />
+
+            <div className="menu-group-title">Analytics</div>
+            <NavBtn to={`/projects/${projectId}/s-curve`}      label="S-Curve"       sub="Plan vs actual" />
+            <NavBtn to={`/projects/${projectId}/cost-analysis`} label="Cost Analysis" sub="Biaya & deviasi" />
+
+            <div className="menu-group-title">Reports</div>
+            <NavBtn to={`/projects/${projectId}/reports`} label="Reports" sub="Generate laporan" />
+          </>
         )}
+
+        <div className="menu-group-title">System</div>
+        {isAdminSistem() && (
+          <NavBtn to="/admin" label="User Settings" sub="Profil & akses pengguna" />
+        )}
+        {isDireksi() && (
+          <NavBtn to="/wbd-approvals" label="Persetujuan WBD" sub="Review & approve baseline" />
+        )}
+
+        <button
+          className="nav-btn"
+          onClick={logout}
+          style={{ marginTop: 8, color: 'rgba(244,243,236,0.7)' }}
+        >
+          <strong>Keluar</strong>
+          <span>{user?.full_name ?? 'Akun saya'}</span>
+        </button>
       </nav>
 
-      <div className="sidebar-footer">
-        <div className="user-info">
-          <div className="user-name">{user?.full_name}</div>
-          <div className="user-role">{user?.role?.name}</div>
-        </div>
-        <button className="btn btn-sm btn-secondary" style={{ width: '100%' }} onClick={logout}>
-          Keluar
-        </button>
+      <div className="menu-group-title">Ekspansi Bertahap</div>
+      <div className="future-module">
+        <strong>+ Tambah Menu Baru</strong>
+        <p>Area ini disiapkan agar modul baru seperti vendor, GPS blok, atau inspeksi HSE bisa ditambahkan tanpa mengubah struktur utama.</p>
       </div>
-    </div>
+    </aside>
   );
 }

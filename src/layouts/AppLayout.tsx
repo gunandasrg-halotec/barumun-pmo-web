@@ -1,74 +1,78 @@
-import {
-  Outlet,
-  useLocation,
-  Link,
-  useOutletContext,
-  useMatches,
-} from "react-router-dom";
-import Sidebar from "./Sidebar";
-import { useAuth } from "../context/AuthContext";
+import { Outlet, useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import Sidebar from './Sidebar';
+import { useAuth } from '../context/AuthContext';
+import projectService from '../services/projectService';
 
 export default function AppLayout() {
   const { user } = useAuth();
-  const { pathname } = useLocation();
-  const context = useOutletContext();
-  // Build breadcrumb
-  const parts = pathname.split("/").filter(Boolean);
-  // const matches = useMatches();
+  const { projectId } = useParams();
+  const navigate = useNavigate();
 
-  // // Find the match that contains your specific handle data
-  // // (or just grab the last one if you want the deepest active route)
-  // const currentMatch = matches.find((match) => (match.handle as any)?.title);
-  // const title = (currentMatch?.handle as any)?.title;
+  const { data: projects } = useQuery({
+    queryKey: ['projects-list-topbar'],
+    queryFn: () => projectService.getProjects(),
+    select: (res: any) => res.data ?? [],
+  });
+
+  const activeProject = projects?.find((p: any) => p.id === projectId);
+
+  const initials = user?.full_name
+    ? user.full_name.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
+    : 'U';
+
+  function handleProjectChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const id = e.target.value;
+    if (id) navigate(`/projects/${id}/dashboard`);
+    else navigate('/projects');
+  }
 
   return (
-    <div className="app-layout">
+    <div className="app-shell">
       <Sidebar />
-      <div className="main-content">
+
+      <main className="main">
+        {/* Topbar */}
         <div className="topbar">
-          <div
-            className="flex-row"
-            style={{ fontSize: 13, color: "var(--text-muted)" }}
-          >
-            {parts.map((part, i) => {
-              const path = "/" + parts.slice(0, i + 1).join("/");
-              const isLast = i === parts.length - 1;
-              const label = decodeURIComponent(part);
-              return (
-                <span key={path} className="flex-row">
-                  {i > 0 && <span style={{ margin: "0 4px" }}>/</span>}
-                  {isLast ? (
-                    <span style={{ color: "var(--text)", fontWeight: 500 }}>
-                      {label}
-                    </span>
-                  ) : (
-                    <Link to={path} style={{ color: "var(--text-muted)" }}>
-                      {label}
-                    </Link>
-                  )}
-                </span>
-              );
-            })}
+          <div className="project-pill glass">
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <label>Project</label>
+              <select value={projectId ?? ''} onChange={handleProjectChange}>
+                <option value="">— Pilih Proyek —</option>
+                {projects?.map((p: any) => (
+                  <option key={p.id} value={p.id}>{p.project_name}</option>
+                ))}
+              </select>
+            </div>
+            {activeProject && (
+              <div className="cluster">
+                <div className={`chip status-${activeProject.status === 'ACTIVE' ? 'ok' : 'warn'}`}>
+                  {activeProject.status}
+                </div>
+                <div className="chip">{activeProject.client_name ?? ''}</div>
+              </div>
+            )}
           </div>
-          <div className="flex-row">
-            <span
-              style={{
-                background: "var(--primary-light)",
-                color: "var(--primary)",
-                padding: "4px 10px",
-                borderRadius: 20,
-                fontSize: 12,
-                fontWeight: 600,
-              }}
-            >
-              {user?.role?.name}
-            </span>
+
+          <div className="search-box glass">
+            <input
+              type="text"
+              placeholder="Cari item pekerjaan, grup, atau kode..."
+              aria-label="Pencarian"
+            />
+            <p>Filter cepat untuk WBD, status, penanggung jawab, atau item terlambat.</p>
+          </div>
+
+          <div className="top-actions glass">
+            <div className="chip">Notifikasi</div>
+            <div className="chip">{user?.role?.role_name ?? 'User'}</div>
+            <div className="avatar">{initials}</div>
           </div>
         </div>
-        <div className="page-body">
-          <Outlet />
-        </div>
-      </div>
+
+        {/* Page content */}
+        <Outlet />
+      </main>
     </div>
   );
 }
