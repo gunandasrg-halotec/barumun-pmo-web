@@ -1,417 +1,474 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fileService } from "../../services/fileService";
-import api from "../../services/api";
-import { useAuth } from "../../context/AuthContext";
-import { Navigate } from "react-router-dom";
-import LoadingState from "../../components/ui/LoadingState";
-import Modal from "../../components/ui/Modal";
-import { formatDateTime, extractError } from "../../utils/format";
-import { accountService } from "@/services/accountService";
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { formatDate, formatDateTime, extractError } from '../../utils/format';
+
+const ROLES = [
+  { value: 'ADMINISTRATOR_SISTEM', label: 'Administrator Sistem', cls: 'done',    desc: 'Akses penuh: kelola user, semua proyek, semua modul.' },
+  { value: 'PROJECT_MANAGER',      label: 'Project Manager',      cls: 'running', desc: 'Kelola WBD, approve progress, generate laporan.' },
+  { value: 'DIREKSI',              label: 'Direksi',              cls: 'done',    desc: 'Approve WBD baseline, akses executive dashboard.' },
+  { value: 'FINANCE',              label: 'Finance',              cls: 'running', desc: 'Review biaya, akses cost analysis dan laporan keuangan.' },
+  { value: 'ADMIN_PROYEK',         label: 'Admin Proyek',         cls: 'planned', desc: 'Input progress lapangan, upload dokumen.' },
+];
+
+const TABS = ['Manajemen User', 'Profil Saya', 'Akses & Role'];
 
 export default function AdminPage() {
-  const { isAdminSistem } = useAuth();
-  if (!isAdminSistem()) return <Navigate to="/projects" />;
+  const { user: currentUser, isAdminSistem } = useAuth();
+  const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<"users" | "categories">("users");
+  const [activeTab,   setActiveTab]   = useState('Manajemen User');
+  const [showCreate,  setShowCreate]  = useState(false);
+  const [editUser,    setEditUser]    = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter,  setRoleFilter]  = useState('');
+
+  // Profile edit state
+  const [profileForm, setProfileForm] = useState({ full_name: (currentUser as any)?.full_name ?? '', phone: (currentUser as any)?.phone ?? '' });
+  const [pwForm, setPwForm]           = useState({ current_password: '', password: '', password_confirmation: '' });
+  const [profileMsg, setProfileMsg]   = useState('');
+  const [pwMsg, setPwMsg]             = useState('');
+
+  const usersQ = useQuery({
+    queryKey: ['users', searchQuery, roleFilter],
+    queryFn: () => api.get('/users', { params: { search: searchQuery || undefined, role: roleFilter || undefined } }).then(r => r.data),
+    enabled: isAdminSistem(),
+  });
+
+  const createMut = useMutation({
+    mutationFn: (d: any) => api.post('/users', d).then(r => r.data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); setShowCreate(false); },
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, ...d }: any) => api.put(`/users/${id}`, d).then(r => r.data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); setEditUser(null); },
+  });
+
+  const toggleActiveMut = useMutation({
+    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) => api.patch(`/users/${id}/toggle-active`, { is_active }).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
+  });
+
+  const updateProfileMut = useMutation({
+    mutationFn: (d: any) => api.put('/profile', d).then(r => r.data),
+    onSuccess: () => setProfileMsg('Profil berhasil diperbarui.'),
+    onError: (e) => setProfileMsg('Error: ' + extractError(e)),
+  });
+
+  const changePwMut = useMutation({
+    mutationFn: (d: any) => api.put('/profile/password', d).then(r => r.data),
+    onSuccess: () => { setPwMsg('Password berhasil diubah.'); setPwForm({ current_password: '', password: '', password_confirmation: '' }); },
+    onError: (e) => setPwMsg('Error: ' + extractError(e)),
+  });
+
+  const users: any[] = usersQ.data?.data ?? [];
 
   return (
     <div>
-      <div className="page-header">
-        <h1>Administrasi Sistem</h1>
-        <p>Kelola user, role, dan master data</p>
+      {/* Header */}
+      <div className="section-card glass" style={{ marginBottom: 18 }}>
+        <div className="section-title">
+          <div>
+            <h3>Pengaturan User & Sistem</h3>
+            <p>Kelola akun pengguna, role, dan profil. Akses penuh hanya untuk Administrator Sistem.</p>
+          </div>
+          <div className="cluster">
+            {isAdminSistem() && (
+              <button className="btn" onClick={() => setShowCreate(true)}>+ Tambah User</button>
+            )}
+          </div>
+        </div>
+
+        <div className="summary-bar">
+          {ROLES.map(r => (
+            <div key={r.value} className="summary-item">
+              <span>{r.label}</span>
+              <strong>{users.filter(u => u.role === r.value).length}</strong>
+            </div>
+          )).slice(0, 4)}
+        </div>
       </div>
 
-      <div
-        className="flex-row"
-        style={{ marginBottom: 16, borderBottom: "1px solid var(--border)" }}
-      >
-        {(["users", "categories"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              background: "none",
-              border: "none",
-              padding: "10px 16px",
-              cursor: "pointer",
-              fontWeight: activeTab === tab ? 600 : 400,
-              color: activeTab === tab ? "var(--primary)" : "var(--text-muted)",
-              borderBottom:
-                activeTab === tab
-                  ? "2px solid var(--primary)"
-                  : "2px solid transparent",
-              marginBottom: -1,
-              fontSize: 13,
-            }}
-          >
-            {tab === "users" ? "👥 Kelola User" : "🏷️ Kategori File"}
-          </button>
+      {/* Tabs */}
+      <div className="toolbar" style={{ marginBottom: 18 }}>
+        {TABS.map(t => (
+          <button key={t} className={`btn ${activeTab === t ? '' : 'secondary'}`} onClick={() => setActiveTab(t)}>{t}</button>
         ))}
+        <div className="stretch" />
       </div>
 
-      {activeTab === "users" ? <UsersManagement /> : <FileCategoryManagement />}
-    </div>
-  );
-}
+      {/* Tab: Manajemen User */}
+      {activeTab === 'Manajemen User' && (
+        <div className="section-card glass">
+          {!isAdminSistem() ? (
+            <div className="empty-state">Anda tidak memiliki akses untuk mengelola user. Hubungi Administrator Sistem.</div>
+          ) : (
+            <>
+              <div className="toolbar" style={{ marginBottom: 14 }}>
+                <input
+                  type="search"
+                  className="stretch"
+                  placeholder="Cari nama atau email pengguna..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+                <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}>
+                  <option value="">Semua Role</option>
+                  {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+              </div>
 
-function UsersManagement() {
-  const queryClient = useQueryClient();
-  const [showCreate, setShowCreate] = useState(false);
-
-  
-  const { data: usersQ, isLoading: isUserLoading } = useQuery({
-    queryKey: ["users"],
-    queryFn: () => api.get("/users").then((r) => r.data),
-    gcTime: 0, //set gcTime 0  to make sure next useQuery doesn't run
-    //before the usersQ is loaded.
-  });
-
-  
-  const { data: rolesQ, isLoading: isRoleLoading } = useQuery({
-    queryKey: ["roles"],
-    queryFn: () => api.get("/roles").then((r) => r.data),
-    enabled: Array.isArray(usersQ?.data) && usersQ?.data.length > 0,
-    gcTime: 0,
-  });
-  
-  const users = usersQ?.data ?? [];
-  const roles = rolesQ?.data ?? [];
-
-  return (
-    <div className="card">
-      <div className="card-header">
-        <div className="card-title">Manajemen User</div>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-          + Tambah User
-        </button>
-      </div>
-      {isUserLoading && isRoleLoading ? (
-        <LoadingState />
-      ) : (
-        <div className="table-wrapper">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Nama</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u: any) => (
-                <tr key={u.id}>
-                  <td style={{ fontWeight: 500 }}>{u.full_name}</td>
-                  <td>{u.email}</td>
-                  <td>
-                    <span className="badge badge-secondary">
-                      {u.role?.name}
-                    </span>
-                  </td>
-                  <td>
-                    <span
-                      className={`badge ${
-                        u.is_active ? "badge-success" : "badge-danger"
-                      }`}
-                    >
-                      {u.is_active ? "Aktif" : "Nonaktif"}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      className="btn btn-sm btn-secondary"
-                      onClick={() => {
-                        api
-                          .patch(`/user/${u.id}`, { is_active: !u.is_active })
-                          .then(() =>
-                            queryClient.invalidateQueries({
-                              queryKey: ["users"],
-                            })
-                          );
-                      }}
-                    >
-                      {u.is_active ? "Nonaktifkan" : "Aktifkan"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              {usersQ.isLoading ? (
+                <div className="loading-state">Memuat daftar pengguna...</div>
+              ) : usersQ.error ? (
+                <div className="danger-box">{extractError(usersQ.error)}</div>
+              ) : users.length === 0 ? (
+                <div className="empty-state">Tidak ada pengguna ditemukan.</div>
+              ) : (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Pengguna</th>
+                        <th>Role</th>
+                        <th>Email</th>
+                        <th>Bergabung</th>
+                        <th>Terakhir Login</th>
+                        <th>Status</th>
+                        <th>Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((u: any) => {
+                        const role = ROLES.find(r => r.value === u.role);
+                        return (
+                          <tr key={u.id}>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{
+                                  width: 36, height: 36, borderRadius: '50%',
+                                  background: 'linear-gradient(135deg, var(--green-800), var(--green-600))',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  color: 'white', fontWeight: 700, fontSize: 14, flexShrink: 0,
+                                }}>
+                                  {(u.full_name ?? 'U').charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <div style={{ fontWeight: 600, fontSize: 13 }}>{u.full_name}</div>
+                                  {u.phone && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{u.phone}</div>}
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`badge ${role?.cls ?? 'planned'}`}>{role?.label ?? u.role}</span>
+                            </td>
+                            <td style={{ fontSize: 12 }}>{u.email}</td>
+                            <td style={{ fontSize: 12, color: 'var(--muted)' }}>{formatDate(u.created_at)}</td>
+                            <td style={{ fontSize: 12, color: 'var(--muted)' }}>{u.last_login_at ? formatDateTime(u.last_login_at) : '—'}</td>
+                            <td>
+                              <span className={`badge ${u.is_active ? 'done' : 'delay'}`}>
+                                {u.is_active ? 'Aktif' : 'Nonaktif'}
+                              </span>
+                            </td>
+                            <td>
+                              <div className="cluster">
+                                <button className="chip clickable" onClick={() => setEditUser(u)}>Edit</button>
+                                {u.id !== (currentUser as any)?.id && (
+                                  <button
+                                    className="chip clickable"
+                                    style={{ color: u.is_active ? 'var(--danger)' : 'var(--ok)' }}
+                                    onClick={() => toggleActiveMut.mutate({ id: u.id, is_active: !u.is_active })}
+                                  >
+                                    {u.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
-      <Modal
-        isOpen={showCreate}
-        onClose={() => setShowCreate(false)}
-        title="Tambah User"
-      >
-        <UserCreateForm
-          roles={roles}
-          onSuccess={() => {
-            setShowCreate(false);
-            queryClient.invalidateQueries({ queryKey: ["users"] });
-          }}
-          onCancel={() => setShowCreate(false)}
-        />
-      </Modal>
+      {/* Tab: Profil Saya */}
+      {activeTab === 'Profil Saya' && (
+        <div className="editor-layout">
+          {/* Profile info card */}
+          <div className="editor-card glass">
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '20px 0 28px' }}>
+              <div style={{
+                width: 72, height: 72, borderRadius: '50%', marginBottom: 14,
+                background: 'linear-gradient(135deg, var(--green-800), var(--green-600))',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'white', fontWeight: 800, fontSize: 28,
+              }}>
+                {((currentUser as any)?.full_name ?? 'U').charAt(0).toUpperCase()}
+              </div>
+              <h3 style={{ margin: '0 0 4px', fontSize: 18 }}>{(currentUser as any)?.full_name ?? '—'}</h3>
+              <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>{(currentUser as any)?.email}</div>
+              {(() => {
+                const role = ROLES.find(r => r.value === (currentUser as any)?.role);
+                return <span className={`badge ${role?.cls ?? 'planned'}`}>{role?.label ?? (currentUser as any)?.role}</span>;
+              })()}
+            </div>
+
+            <div className="panel-block" style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 2 }}>Bergabung sejak</div>
+              <strong>{formatDate((currentUser as any)?.created_at)}</strong>
+            </div>
+
+            <h4 style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--green-800)' }}>Edit Profil</h4>
+            {profileMsg && (
+              <div className={profileMsg.startsWith('Error') ? 'danger-box' : 'panel-block'} style={{ marginBottom: 12, fontSize: 13 }}>
+                {profileMsg}
+              </div>
+            )}
+            <div className="field">
+              <label>Nama Lengkap</label>
+              <input value={profileForm.full_name} onChange={e => setProfileForm(p => ({ ...p, full_name: e.target.value }))} />
+            </div>
+            <div className="field">
+              <label>No. Telepon</label>
+              <input value={profileForm.phone} onChange={e => setProfileForm(p => ({ ...p, phone: e.target.value }))} />
+            </div>
+            <button
+              className="btn"
+              onClick={() => updateProfileMut.mutate(profileForm)}
+              disabled={updateProfileMut.isPending}
+              style={{ width: '100%', marginTop: 4 }}
+            >
+              {updateProfileMut.isPending ? 'Menyimpan...' : 'Simpan Profil'}
+            </button>
+          </div>
+
+          {/* Change password */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="section-card glass" style={{ margin: 0 }}>
+              <h4 style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--green-800)' }}>Ubah Password</h4>
+              {pwMsg && (
+                <div className={pwMsg.startsWith('Error') ? 'danger-box' : 'panel-block'} style={{ marginBottom: 12, fontSize: 13 }}>
+                  {pwMsg}
+                </div>
+              )}
+              <div className="field">
+                <label>Password Saat Ini *</label>
+                <input type="password" value={pwForm.current_password} onChange={e => setPwForm(p => ({ ...p, current_password: e.target.value }))} />
+              </div>
+              <div className="field">
+                <label>Password Baru *</label>
+                <input type="password" value={pwForm.password} onChange={e => setPwForm(p => ({ ...p, password: e.target.value }))} />
+              </div>
+              <div className="field">
+                <label>Konfirmasi Password Baru *</label>
+                <input type="password" value={pwForm.password_confirmation} onChange={e => setPwForm(p => ({ ...p, password_confirmation: e.target.value }))} />
+              </div>
+              <button
+                className="btn"
+                onClick={() => changePwMut.mutate(pwForm)}
+                disabled={changePwMut.isPending || !pwForm.current_password || !pwForm.password}
+                style={{ width: '100%', marginTop: 4 }}
+              >
+                {changePwMut.isPending ? 'Mengubah...' : 'Ubah Password'}
+              </button>
+            </div>
+
+            <div className="section-card glass" style={{ margin: 0 }}>
+              <h4 style={{ margin: '0 0 10px', fontSize: 14, color: 'var(--green-800)' }}>Notifikasi</h4>
+              {[
+                { label: 'Progress menunggu approval', enabled: true },
+                { label: 'WBD disubmit untuk review',  enabled: true },
+                { label: 'Laporan selesai digenerate', enabled: false },
+                { label: 'Ringkasan mingguan email',   enabled: false },
+              ].map((n, i) => (
+                <div key={i} className="panel-block" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 13 }}>{n.label}</span>
+                  <div
+                    style={{
+                      width: 40, height: 22, borderRadius: 11,
+                      background: n.enabled ? 'var(--green-700)' : 'var(--line)',
+                      position: 'relative', cursor: 'pointer', transition: 'background 0.2s',
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute', top: 3, left: n.enabled ? 20 : 3,
+                      width: 16, height: 16, borderRadius: '50%', background: 'white',
+                      transition: 'left 0.2s',
+                    }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Akses & Role */}
+      {activeTab === 'Akses & Role' && (
+        <div className="section-card glass">
+          <h4 style={{ margin: '0 0 14px', fontSize: 14, color: 'var(--green-800)' }}>Deskripsi Role & Hak Akses</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
+            {ROLES.map(r => (
+              <div key={r.value} className="panel-block" style={{ padding: '16px 18px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                  <span className={`badge ${r.cls}`}>{r.label}</span>
+                  <strong style={{ fontSize: 13, color: 'var(--muted)' }}>
+                    {users.filter(u => u.role === r.value).length} user
+                  </strong>
+                </div>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>{r.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 20 }}>
+            <h4 style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--green-800)' }}>Matriks Akses Modul</h4>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Modul</th>
+                    {ROLES.map(r => <th key={r.value} style={{ fontSize: 11, minWidth: 100 }}>{r.label}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { modul: 'Dashboard Proyek',  access: ['view', 'view', 'view', 'view', 'view'] },
+                    { modul: 'WBD — Edit',        access: ['full', 'full', 'none', 'none', 'none'] },
+                    { modul: 'WBD — Approve',     access: ['full', 'none', 'full', 'none', 'none'] },
+                    { modul: 'Gantt',             access: ['view', 'view', 'view', 'view', 'view'] },
+                    { modul: 'Progress — Input',  access: ['full', 'full', 'none', 'none', 'full'] },
+                    { modul: 'Progress — Approve',access: ['full', 'full', 'none', 'none', 'none'] },
+                    { modul: 'Documents',         access: ['full', 'full', 'view', 'view', 'full'] },
+                    { modul: 'S-Curve',           access: ['view', 'view', 'view', 'view', 'view'] },
+                    { modul: 'Cost Analysis',     access: ['view', 'view', 'view', 'full', 'none'] },
+                    { modul: 'Reports',           access: ['full', 'full', 'view', 'full', 'none'] },
+                    { modul: 'User Management',   access: ['full', 'none', 'none', 'none', 'none'] },
+                  ].map(row => (
+                    <tr key={row.modul}>
+                      <td style={{ fontWeight: 500 }}>{row.modul}</td>
+                      {row.access.map((a, i) => (
+                        <td key={i} style={{ textAlign: 'center' }}>
+                          {a === 'full'  && <span className="badge done">Penuh</span>}
+                          {a === 'view'  && <span className="badge planned">Lihat</span>}
+                          {a === 'none'  && <span style={{ color: 'var(--muted)', fontSize: 16 }}>—</span>}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create User Modal */}
+      {showCreate && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowCreate(false); }}>
+          <div className="modal-window" style={{ maxWidth: 540 }}>
+            <div className="modal-head">
+              <div>
+                <h4>Tambah Pengguna Baru</h4>
+                <p>Buat akun baru dengan role yang sesuai tanggung jawab.</p>
+              </div>
+              <button className="modal-close" onClick={() => setShowCreate(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <UserForm
+                onSuccess={(d) => createMut.mutate(d)}
+                onCancel={() => setShowCreate(false)}
+                isPending={createMut.isPending}
+                error={createMut.error ? extractError(createMut.error) : ''}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {editUser && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setEditUser(null); }}>
+          <div className="modal-window" style={{ maxWidth: 540 }}>
+            <div className="modal-head">
+              <div>
+                <h4>Edit Pengguna</h4>
+                <p>Ubah detail akun {editUser.full_name}.</p>
+              </div>
+              <button className="modal-close" onClick={() => setEditUser(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <UserForm
+                initial={editUser}
+                onSuccess={(d) => updateMut.mutate({ id: editUser.id, ...d })}
+                onCancel={() => setEditUser(null)}
+                isPending={updateMut.isPending}
+                error={updateMut.error ? extractError(updateMut.error) : ''}
+                isEdit
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function UserCreateForm({ roles, onSuccess, onCancel }: any) {
+function UserForm({
+  initial, onSuccess, onCancel, isPending, error, isEdit = false,
+}: { initial?: any; onSuccess: (d: any) => void; onCancel: () => void; isPending: boolean; error: string; isEdit?: boolean }) {
   const [form, setForm] = useState({
-    full_name: "",
-    email: "",
-    password: "",
-    role_id: "",
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    try {
-      await api.post("/users", form);
-      onSuccess();
-    } catch (err) {
-      setError(extractError(err));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      {error && (
-        <div className="error-state" style={{ marginBottom: 12 }}>
-          {error}
-        </div>
-      )}
-      <div className="form-group">
-        <label className="form-label">
-          Nama Lengkap <span className="required">*</span>
-        </label>
-        <input
-          type="text"
-          className="form-control"
-          value={form.full_name}
-          onChange={(e) =>
-            setForm((p) => ({ ...p, full_name: e.target.value }))
-          }
-          required
-        />
-      </div>
-      <div className="form-group">
-        <label className="form-label">
-          Email <span className="required">*</span>
-        </label>
-        <input
-          type="email"
-          className="form-control"
-          value={form.email}
-          onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-          required
-        />
-      </div>
-      <div className="form-group">
-        <label className="form-label">
-          Password <span className="required">*</span>
-        </label>
-        <input
-          type="password"
-          className="form-control"
-          value={form.password}
-          onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-          required
-          minLength={8}
-        />
-      </div>
-      <div className="form-group">
-        <label className="form-label">
-          Role <span className="required">*</span>
-        </label>
-        <select
-          className="form-control"
-          value={form.role_id}
-          onChange={(e) => setForm((p) => ({ ...p, role_id: e.target.value }))}
-          required
-        >
-          <option value="">Pilih role...</option>
-          {roles.map((r: any) => (
-            <option key={r.id} value={r.id}>
-              {r.role_name}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="btn-group" style={{ justifyContent: "flex-end" }}>
-        <button type="button" className="btn btn-secondary" onClick={onCancel}>
-          Batal
-        </button>
-        <button type="submit" className="btn btn-primary" disabled={isLoading}>
-          {isLoading ? "Menyimpan..." : "Tambah User"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function FileCategoryManagement() {
-  const queryClient = useQueryClient();
-  const [showCreate, setShowCreate] = useState(false);
-
-  const catQ = useQuery({
-    queryKey: ["file-categories-all"],
-    queryFn: () => fileService.listCategories(false),
+    full_name: initial?.full_name ?? '',
+    email:     initial?.email     ?? '',
+    role:      initial?.role      ?? 'ADMIN_PROYEK',
+    phone:     initial?.phone     ?? '',
+    password:  '',
   });
 
-  const categories = catQ.data?.data ?? [];
-
   return (
-    <div className="card">
-      <div className="card-header">
-        <div className="card-title">Kategori File</div>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-          + Tambah Kategori
-        </button>
-      </div>
-      {catQ.isLoading ? (
-        <LoadingState />
-      ) : (
-        <div className="table-wrapper">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Nama Kategori</th>
-                <th>Deskripsi</th>
-                <th>Status</th>
-                <th>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {categories.map((c: any) => (
-                <tr key={c.id}>
-                  <td style={{ fontWeight: 500 }}>{c.category_name}</td>
-                  <td style={{ color: "var(--text-muted)" }}>
-                    {c.description ?? "—"}
-                  </td>
-                  <td>
-                    <span
-                      className={`badge ${
-                        c.is_active ? "badge-success" : "badge-secondary"
-                      }`}
-                    >
-                      {c.is_active ? "Aktif" : "Nonaktif"}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      className="btn btn-sm btn-secondary"
-                      onClick={() => {
-                        fileService
-                          .updateCategory(c.id, { is_active: !c.is_active })
-                          .then(() =>
-                            queryClient.invalidateQueries({
-                              queryKey: ["file-categories-all"],
-                            })
-                          );
-                      }}
-                    >
-                      {c.is_active ? "Nonaktifkan" : "Aktifkan"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <form onSubmit={e => { e.preventDefault(); onSuccess(form); }}>
+      {error && <div className="danger-box" style={{ marginBottom: 12 }}>{error}</div>}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>Nama Lengkap *</label>
+          <input value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))} required />
         </div>
-      )}
-
-      <Modal
-        isOpen={showCreate}
-        onClose={() => setShowCreate(false)}
-        title="Tambah Kategori File"
-      >
-        <CategoryCreateForm
-          onSuccess={() => {
-            setShowCreate(false);
-            queryClient.invalidateQueries({
-              queryKey: ["file-categories-all"],
-            });
-          }}
-          onCancel={() => setShowCreate(false)}
-        />
-      </Modal>
-    </div>
-  );
-}
-
-function CategoryCreateForm({
-  onSuccess,
-  onCancel,
-}: {
-  onSuccess: () => void;
-  onCancel: () => void;
-}) {
-  const [form, setForm] = useState({ category_name: "", description: "" });
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    try {
-      await fileService.createCategory(form);
-      onSuccess();
-    } catch (err) {
-      setError(extractError(err));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      {error && (
-        <div className="error-state" style={{ marginBottom: 12 }}>
-          {error}
+        <div className="field">
+          <label>Email *</label>
+          <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} required />
         </div>
-      )}
-      <div className="form-group">
-        <label className="form-label">
-          Nama Kategori <span className="required">*</span>
-        </label>
-        <input
-          type="text"
-          className="form-control"
-          value={form.category_name}
-          onChange={(e) =>
-            setForm((p) => ({ ...p, category_name: e.target.value }))
-          }
-          required
-        />
+        <div className="field">
+          <label>No. Telepon</label>
+          <input value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
+        </div>
+        <div className="field">
+          <label>Role *</label>
+          <select value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))} style={{ width: '100%' }}>
+            {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+          </select>
+        </div>
+        {!isEdit && (
+          <div className="field">
+            <label>Password *</label>
+            <input type="password" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} required={!isEdit} minLength={8} />
+          </div>
+        )}
       </div>
-      <div className="form-group">
-        <label className="form-label">Deskripsi</label>
-        <input
-          type="text"
-          className="form-control"
-          value={form.description}
-          onChange={(e) =>
-            setForm((p) => ({ ...p, description: e.target.value }))
-          }
-        />
-      </div>
-      <div className="btn-group" style={{ justifyContent: "flex-end" }}>
-        <button type="button" className="btn btn-secondary" onClick={onCancel}>
-          Batal
-        </button>
-        <button type="submit" className="btn btn-primary" disabled={isLoading}>
-          Tambah
-        </button>
+      <div className="modal-foot" style={{ padding: 0, marginTop: 4 }}>
+        <div />
+        <div className="cluster">
+          <button type="button" className="btn secondary" onClick={onCancel} disabled={isPending}>Batal</button>
+          <button type="submit" className="btn" disabled={isPending}>
+            {isPending ? 'Menyimpan...' : isEdit ? 'Simpan Perubahan' : 'Tambah Pengguna'}
+          </button>
+        </div>
       </div>
     </form>
   );
