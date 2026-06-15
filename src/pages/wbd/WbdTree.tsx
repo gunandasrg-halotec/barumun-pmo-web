@@ -12,203 +12,166 @@ interface Props {
   onRefresh: () => void;
 }
 
-export default function WbdTree({ nodes, isEditable, versionId, onAddChild, onRefresh }: Props) {
+const STATUS_MAP: Record<string, { label: string; cls: string }> = {
+  DRAFT:    { label: 'Draft',    cls: 'planned' },
+  ACTIVE:   { label: 'Berjalan', cls: 'running' },
+  DONE:     { label: 'Selesai',  cls: 'done'    },
+  DELAYED:  { label: 'Terlambat',cls: 'delay'   },
+};
+
+function computeEndDate(startDate: string | null, durationDays: number | null): string {
+  if (!startDate || !durationDays) return '—';
+  const d = new Date(startDate + 'T00:00:00');
+  d.setDate(d.getDate() + durationDays - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+export default function WbdTree({ nodes, isEditable, onAddChild, onRefresh }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const deleteMut = useMutation({
-    mutationFn: (nodeId: string) => wbdService.deleteNode(nodeId),
+    mutationFn: (id: string) => wbdService.deleteNode(id),
     onSuccess: onRefresh,
   });
 
-  const toggleCollapse = (id: string) => {
-    setCollapsed((prev) => {
+  function toggle(id: string) {
+    setCollapsed(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-  };
+  }
 
-  const totalProject = nodes
-    .filter((n) => n.parent_node_id === null)
-    .reduce((sum, n) => sum + Number(n.planned_cost), 0);
+  const rootNodes = nodes.filter(n => n.parent_node_id === null).sort((a, b) => a.sort_order - b.sort_order);
+  const totalCost = rootNodes.reduce((s, n) => s + Number(n.planned_cost ?? 0), 0);
 
-  const renderNode = (node: WbdNode, depth = 0): React.ReactNode => {
-    const children = nodes.filter((n) => n.parent_node_id === node.id);
+  function renderRows(node: WbdNode, depth = 0): React.ReactNode {
+    const children = nodes.filter(n => n.parent_node_id === node.id).sort((a, b) => a.sort_order - b.sort_order);
     const hasChildren = children.length > 0;
-    const isCollapsed = collapsed.has(node.id);
-    const isGroup = node.node_type === 'GROUP';
+    const isGroup  = node.node_type === 'GROUP';
+    const isColl   = collapsed.has(node.id);
+    const indent   = depth > 0 ? `${depth * 18}px` : undefined;
+    const endDate  = computeEndDate(node.start_date ?? null, node.duration_days ?? null);
+    const st       = STATUS_MAP[node.status ?? ''] ?? { label: node.status ?? '—', cls: 'planned' };
+    const subtotal = isGroup ? children.reduce((s, c) => s + Number(c.planned_cost ?? 0), 0) : 0;
+    const compPct  = isGroup && totalCost > 0 ? ((subtotal / totalCost) * 100).toFixed(2) : null;
 
     return (
-      <div key={node.id}>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '32px 24px 140px 1fr 80px 100px 120px 100px 80px 100px 120px',
-            alignItems: 'center',
-            borderBottom: '1px solid var(--border)',
-            background: isGroup ? '#f8fafc' : 'white',
-            fontSize: 13,
-            minHeight: 40,
-          }}
-        >
-          {/* Expand toggle */}
-          <div style={{ paddingLeft: 8 }}>
-            {hasChildren && (
-              <button
-                onClick={() => toggleCollapse(node.id)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 12 }}
-              >
-                {isCollapsed ? '▶' : '▼'}
-              </button>
-            )}
-          </div>
-
-          {/* Type */}
-          <div>
-            <span style={{ fontSize: 10, fontWeight: 600, color: isGroup ? 'var(--primary)' : 'var(--text-muted)' }}>
-              {isGroup ? 'G' : 'I'}
-            </span>
-          </div>
-
-          {/* Code */}
-          <div style={{ paddingLeft: depth * 16, fontFamily: 'monospace', fontSize: 12, color: 'var(--text-muted)' }}>
-            {node.code}
-          </div>
-
-          {/* Name */}
-          <div style={{ paddingLeft: depth * 8, fontWeight: isGroup ? 600 : 400, paddingRight: 8 }}>
-            {node.name}
-          </div>
-
-          {/* Unit */}
-          <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>{node.unit ?? '—'}</div>
-
-          {/* Volume */}
-          <div style={{ textAlign: 'right', paddingRight: 12 }}>
-            {node.volume != null ? formatNumber(node.volume) : '—'}
-          </div>
-
-          {/* Rate */}
-          <div style={{ textAlign: 'right', paddingRight: 12 }}>
-            {node.rate != null ? formatCurrency(node.rate) : '—'}
-          </div>
-
-          {/* Planned Cost */}
-          <div style={{ textAlign: 'right', paddingRight: 12, fontWeight: 500 }}>
-            {formatCurrency(Number(node.planned_cost))}
-          </div>
-
-          {/* % */}
-          <div style={{ textAlign: 'right', paddingRight: 12, fontSize: 12, color: 'var(--text-muted)' }}>
-            {node.total_percent != null ? `${Number(node.total_percent).toFixed(1)}%` : '—'}
-          </div>
-
-          {/* Dates */}
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            {node.start_date ? formatDate(node.start_date) : '—'}
-            {node.duration_days ? ` (${node.duration_days}h)` : ''}
-          </div>
-
-          {/* Actions */}
-          <div style={{ paddingRight: 8 }}>
-            {isEditable && (
-              <div className="btn-group">
+      <>
+        {/* Group row */}
+        <tr key={node.id} className={isGroup ? 'group-row' : depth >= 2 ? 'indent-2' : 'indent-1'}>
+          <td>{node.code}</td>
+          <td style={{ paddingLeft: indent }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {hasChildren && (
                 <button
-                  className="btn btn-sm btn-secondary"
-                  onClick={() => onAddChild(node)}
-                  title="Tambah child"
+                  onClick={() => toggle(node.id)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, fontSize: 11, opacity: 0.8 }}
                 >
-                  +
+                  {isColl ? '▶' : '▼'}
                 </button>
+              )}
+              {node.name}
+            </div>
+          </td>
+          <td>{node.unit ?? '—'}</td>
+          <td className={isGroup ? '' : 'editable'}>{node.volume != null ? formatNumber(node.volume) : '—'}</td>
+          <td className={isGroup ? '' : 'editable'}>{node.rate != null ? formatCurrency(node.rate) : '—'}</td>
+          <td>
+            {isGroup ? formatCurrency(subtotal) : formatCurrency(Number(node.planned_cost ?? 0))}
+            {!isGroup && <span className="formula">Volume × Tarif</span>}
+          </td>
+          <td>{compPct ? `${compPct}%` : (node.component_percent != null ? `${Number(node.component_percent).toFixed(2)}%` : '—')}</td>
+          <td>{node.total_percent != null ? `${Number(node.total_percent).toFixed(2)}%` : (compPct ? `${((subtotal/totalCost)*100).toFixed(2)}%` : '—')}</td>
+          <td>{node.start_date ? formatDate(node.start_date) : '—'}</td>
+          <td>{node.duration_days ?? '—'}</td>
+          <td>{endDate !== '—' ? formatDate(endDate) : '—'}</td>
+          <td><span className={`badge ${st.cls}`}>{st.label}</span></td>
+          <td>
+            {isEditable && (
+              <div className="cluster">
+                <button className="chip clickable" onClick={() => onAddChild(node)}>+ Item</button>
                 <button
-                  className="btn btn-sm btn-danger"
-                  onClick={() => {
-                    if (window.confirm(`Hapus "${node.name}"?`)) deleteMut.mutate(node.id);
-                  }}
-                  title="Hapus"
+                  className="chip clickable"
+                  style={{ color: 'var(--danger)' }}
+                  onClick={() => { if (window.confirm(`Hapus "${node.name}"?`)) deleteMut.mutate(node.id); }}
                 >
-                  ×
+                  Hapus
                 </button>
               </div>
             )}
-          </div>
-        </div>
+          </td>
+        </tr>
 
         {/* Children */}
-        {hasChildren && !isCollapsed && (
-          <div>{children.sort((a, b) => a.sort_order - b.sort_order).map((c) => renderNode(c, depth + 1))}</div>
+        {hasChildren && !isColl && children.map(c => renderRows(c, depth + 1))}
+
+        {/* Subtotal row for groups */}
+        {isGroup && !isColl && (
+          <tr className="subtotal-row">
+            <td></td>
+            <td>Jumlah Biaya {node.name}</td>
+            <td></td><td></td><td></td>
+            <td>{formatCurrency(subtotal)}</td>
+            <td></td><td></td><td></td><td></td><td></td>
+            <td><span className="badge done">Subtotal</span></td>
+            <td><span className="chip">Terkunci</span></td>
+          </tr>
         )}
+      </>
+    );
+  }
+
+  if (rootNodes.length === 0) {
+    return (
+      <div className="empty-state">
+        Belum ada item WBD. Klik <strong>+ Tambah Item</strong> untuk mulai.
       </div>
     );
-  };
-
-  const rootNodes = nodes.filter((n) => n.parent_node_id === null).sort((a, b) => a.sort_order - b.sort_order);
+  }
 
   return (
     <div>
-      {/* Header */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '32px 24px 140px 1fr 80px 100px 120px 100px 80px 100px 120px',
-          background: '#f1f5f9',
-          padding: '8px 0',
-          fontSize: 11,
-          fontWeight: 600,
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-          color: 'var(--text-muted)',
-          borderBottom: '2px solid var(--border)',
-        }}
-      >
-        <div />
-        <div />
-        <div style={{ paddingLeft: 8 }}>Kode</div>
-        <div>Nama Pekerjaan</div>
-        <div>Satuan</div>
-        <div style={{ textAlign: 'right', paddingRight: 12 }}>Volume</div>
-        <div style={{ textAlign: 'right', paddingRight: 12 }}>Harga Satuan</div>
-        <div style={{ textAlign: 'right', paddingRight: 12 }}>Biaya Rencana</div>
-        <div style={{ textAlign: 'right', paddingRight: 12 }}>% Total</div>
-        <div>Jadwal</div>
-        <div>Aksi</div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Uraian Pekerjaan</th>
+              <th>Satuan</th>
+              <th>Volume</th>
+              <th>Tarif</th>
+              <th>Total Biaya</th>
+              <th>% Komponen</th>
+              <th>% Total</th>
+              <th>Tanggal Mulai</th>
+              <th>Durasi</th>
+              <th>Tanggal Akhir</th>
+              <th>Status</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rootNodes.map(n => renderRows(n, 0))}
+            <tr className="grand-row">
+              <td></td>
+              <td>Total Biaya Proyek</td>
+              <td></td><td></td><td></td>
+              <td>{formatCurrency(totalCost)}</td>
+              <td></td>
+              <td>100,00%</td>
+              <td></td><td></td><td></td>
+              <td><span className="badge done">Baseline</span></td>
+              <td><span className="chip">Terkunci</span></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-
-      {rootNodes.length === 0 ? (
-        <div className="empty-state">
-          <p>Belum ada item WBD. Tambahkan item baru.</p>
-        </div>
-      ) : (
-        rootNodes.map((n) => renderNode(n, 0))
-      )}
-
-      {/* Total row */}
-      {rootNodes.length > 0 && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '32px 24px 140px 1fr 80px 100px 120px 100px 80px 100px 120px',
-            background: '#1e293b',
-            color: '#fff',
-            padding: '10px 0',
-            fontWeight: 700,
-            fontSize: 13,
-          }}
-        >
-          <div />
-          <div />
-          <div style={{ paddingLeft: 8 }}>TOTAL</div>
-          <div />
-          <div />
-          <div />
-          <div />
-          <div style={{ textAlign: 'right', paddingRight: 12 }}>{formatCurrency(totalProject)}</div>
-          <div style={{ textAlign: 'right', paddingRight: 12 }}>100%</div>
-          <div />
-          <div />
-        </div>
-      )}
+      <div className="wbd-footer">
+        <span className="chip">Expand / collapse grup</span>
+        <span className="chip">Formula badge</span>
+        <span className="chip">Sticky subtotal & grand total</span>
+      </div>
     </div>
   );
 }
