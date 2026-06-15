@@ -139,7 +139,7 @@ export default function WbdPage() {
           Pilih versi WBD atau buat versi baru untuk mulai.
           {canManageWbd() && (
             <div style={{ marginTop: 12 }}>
-              <button className="btn" onClick={() => createVersionMut.mutate()}>+ Buat WBD Pertama</button>
+              <button className="btn" onClick={() => createVersionMut.mutate(undefined)}>+ Buat WBD Pertama</button>
             </div>
           )}
         </div>

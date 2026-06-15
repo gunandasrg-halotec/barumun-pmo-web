@@ -60,11 +60,11 @@ export default function FilesPage() {
 
   const filesQ = useQuery({
     queryKey: ['files', projectId, categoryFilter, search],
-    queryFn: () => fileService.list(projectId!, { category: categoryFilter || undefined, search: search || undefined }),
+    queryFn: () => fileService.listFiles(projectId!, { file_category_id: categoryFilter || undefined, search: search || undefined }),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => fileService.delete(id),
+    mutationFn: (id: string) => fileService.archive(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['files', projectId] }),
   });
 

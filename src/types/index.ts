@@ -235,6 +235,7 @@ export interface GanttNode {
   sort_order: number;
   actual_volume: number;
   progress_percent: number;
+  weight_percent: number;
 }
 
 export interface SCurveSeries {
