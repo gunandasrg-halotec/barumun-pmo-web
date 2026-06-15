@@ -47,7 +47,6 @@ export default function AdminPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState("");
   const [queryFilter, setQueryFilter] = useState<{
     role: string;
     is_active: string;
@@ -77,7 +76,7 @@ export default function AdminPage() {
           params: {
             search: searchQuery || undefined,
             filter: Object.fromEntries(
-              Object.entries(queryFilter).filter(([key, value]) => value !== "")
+              Object.entries(queryFilter).filter(([, value]) => value !== "")
             ),
           },
         })
@@ -132,7 +131,7 @@ export default function AdminPage() {
   const userStat = useQuery({
     queryKey: ["user_stats", users],
     queryFn: () => api.get("/users/total-by-role").then((r) => r.data),
-  }); 
+  });
   const userStats: any[] = userStat.data ?? [];
 
   return (
@@ -262,7 +261,7 @@ export default function AdminPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {users.map((u: any, idx) => {
+                      {users.map((u: any) => {
                         const role = ROLES.find((r) => r.value === u.role.code);
 
                         return (
@@ -460,7 +459,7 @@ export default function AdminPage() {
               </div>
             )}
             <div className="field">
-              <label>Nama Lengkap</label>
+              <label className="required">Nama Lengkap</label>
               <input
                 value={profileForm.full_name}
                 onChange={(e) =>
@@ -510,7 +509,7 @@ export default function AdminPage() {
                 </div>
               )}
               <div className="field">
-                <label>Password Saat Ini *</label>
+                <label className="required">Password Saat Ini </label>
                 <input
                   type="password"
                   value={pwForm.current_password}
@@ -523,7 +522,7 @@ export default function AdminPage() {
                 />
               </div>
               <div className="field">
-                <label>Password Baru *</label>
+                <label className="required">Password Baru</label>
                 <input
                   type="password"
                   value={pwForm.password}
@@ -533,7 +532,7 @@ export default function AdminPage() {
                 />
               </div>
               <div className="field">
-                <label>Konfirmasi Password Baru *</label>
+                <label className="required">Konfirmasi Password Baru</label>
                 <input
                   type="password"
                   value={pwForm.password_confirmation}
@@ -873,7 +872,7 @@ function UserForm({
       )}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         <div className="field" style={{ gridColumn: "1 / -1" }}>
-          <label>Nama Lengkap *</label>
+          <label className="required">Nama Lengkap</label>
           <input
             value={form.full_name}
             onChange={(e) =>
@@ -883,7 +882,7 @@ function UserForm({
           />
         </div>
         <div className="field">
-          <label>Email *</label>
+          <label className="required">Email</label>
           <input
             type="email"
             value={form.email}
@@ -899,7 +898,7 @@ function UserForm({
           />
         </div>
         <div className="field">
-          <label>Role *</label>
+          <label className="required">Role</label>
           <select
             value={form.role}
             onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))}
@@ -914,7 +913,7 @@ function UserForm({
         </div>
         {!isEdit && (
           <div className="field">
-            <label>Password *</label>
+            <label className="required">Password</label>
             <input
               type="password"
               value={form.password}

@@ -1314,6 +1314,10 @@ tbody tr:hover {
   font-weight: 900;
   margin-top:10px;
 }
+.field .required::after{
+  content: " *";
+  color: red;  
+}
 .field input,
 .field select,
 .field textarea {
