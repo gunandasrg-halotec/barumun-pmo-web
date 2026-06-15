@@ -3,134 +3,249 @@ import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { reportService } from '../../services/reportService';
 import { useAuth } from '../../context/AuthContext';
-import LoadingState from '../../components/ui/LoadingState';
-import EmptyState from '../../components/ui/EmptyState';
-import Modal from '../../components/ui/Modal';
-import Pagination from '../../components/ui/Pagination';
 import { formatDate, formatDateTime, extractError } from '../../utils/format';
-import type { ReportType } from '../../types';
+
+const REPORT_TYPES = [
+  { value: 'WEEKLY_PROGRESS',    label: 'Laporan Progress Mingguan',  icon: '📋', desc: 'Ringkasan realisasi lapangan per minggu dengan perbandingan plan vs actual.' },
+  { value: 'MONTHLY_SUMMARY',    label: 'Ringkasan Bulanan',          icon: '📅', desc: 'Rekap kumulatif bulanan: volume, biaya, dan deviasi.' },
+  { value: 'COST_REPORT',        label: 'Laporan Biaya',              icon: '💰', desc: 'Analisis biaya rencana vs realisasi dengan breakdown per grup.' },
+  { value: 'GANTT_SNAPSHOT',     label: 'Snapshot Gantt',             icon: '📊', desc: 'Foto timeline pekerjaan pada titik waktu tertentu.' },
+  { value: 'EXECUTIVE_SUMMARY',  label: 'Executive Summary',          icon: '🏢', desc: 'Ringkasan eksekutif untuk Direksi: KPI, status, dan risiko.' },
+  { value: 'FULL_PROJECT',       label: 'Laporan Proyek Lengkap',     icon: '📦', desc: 'Dokumen komprehensif seluruh aspek proyek (WBD, Gantt, Progress, Biaya).' },
+];
+
+const STATUS_MAP: Record<string, { label: string; cls: string }> = {
+  GENERATING: { label: 'Memproses', cls: 'running' },
+  READY:      { label: 'Siap',      cls: 'done'    },
+  FAILED:     { label: 'Gagal',     cls: 'delay'   },
+};
 
 export default function ReportsPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { canGenerateReport } = useAuth();
+  const { canGenerateReports } = useAuth() as any;
   const queryClient = useQueryClient();
-  const [showGenerate, setShowGenerate] = useState(false);
-  const [page, setPage] = useState(1);
+
+  const [reportType, setReportType] = useState('WEEKLY_PROGRESS');
+  const [dateFrom,   setDateFrom]   = useState('');
+  const [dateTo,     setDateTo]     = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [genError,   setGenError]   = useState('');
 
   const reportsQ = useQuery({
-    queryKey: ['reports', projectId, page],
+    queryKey: ['reports', projectId],
     queryFn: () => reportService.list(projectId!),
+    enabled: !!projectId,
   });
 
-  const reports = reportsQ.data?.data ?? [];
-  const meta = reportsQ.data?.meta;
+  const generateMut = useMutation({
+    mutationFn: () => reportService.generate(projectId!, { type: reportType, date_from: dateFrom || undefined, date_to: dateTo || undefined }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reports', projectId] });
+      setGenerating(false);
+    },
+    onError: (err) => { setGenError(extractError(err)); setGenerating(false); },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => reportService.delete(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reports', projectId] }),
+  });
+
+  const reports: any[] = (reportsQ.data as any)?.data ?? [];
+  const selectedType = REPORT_TYPES.find(r => r.value === reportType);
+
+  function handleGenerate() {
+    setGenError('');
+    setGenerating(true);
+    generateMut.mutate();
+  }
 
   return (
     <div>
-      <div className="page-header">
-        <div className="page-header-row">
+      {/* Header */}
+      <div className="section-card glass" style={{ marginBottom: 18 }}>
+        <div className="section-title">
           <div>
-            <h1>Laporan Proyek</h1>
-            <p>Generate dan unduh laporan final proyek</p>
+            <h3>Generate Laporan</h3>
+            <p>Buat dan unduh laporan proyek dalam format PDF. Laporan mencakup WBD, Gantt, S-Curve, dan progress lapangan.</p>
           </div>
-          {canGenerateReport() && (
-            <button className="btn btn-primary" onClick={() => setShowGenerate(true)}>
-              📊 Generate Laporan
-            </button>
-          )}
+          <div className="cluster">
+            <span className="chip">{reports.length} laporan tersimpan</span>
+          </div>
+        </div>
+
+        <div className="summary-bar">
+          {[
+            { label: 'Total Laporan', val: reports.length },
+            { label: 'Siap Unduh',   val: reports.filter(r => r.status === 'READY').length },
+            { label: 'Diproses',     val: reports.filter(r => r.status === 'GENERATING').length },
+            { label: 'Gagal',        val: reports.filter(r => r.status === 'FAILED').length },
+          ].map(s => (
+            <div key={s.label} className="summary-item">
+              <span>{s.label}</span>
+              <strong>{s.val}</strong>
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-header"><div className="card-title">Riwayat Laporan</div></div>
-        {reportsQ.isLoading ? <LoadingState /> : reports.length === 0 ? (
-          <EmptyState title="Belum ada laporan" message="Generate laporan untuk melihat riwayat." />
+      {/* Generate toolbar */}
+      {(canGenerateReports ? canGenerateReports() : true) && (
+        <div className="section-card glass" style={{ marginBottom: 18 }}>
+          <h4 style={{ margin: '0 0 14px', fontSize: 14, color: 'var(--green-800)' }}>Generate Laporan Baru</h4>
+
+          {/* Report type grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginBottom: 16 }}>
+            {REPORT_TYPES.map(r => (
+              <div
+                key={r.value}
+                onClick={() => setReportType(r.value)}
+                style={{
+                  padding: '14px 16px',
+                  borderRadius: 12,
+                  border: `2px solid ${reportType === r.value ? 'var(--green-700)' : 'var(--line)'}`,
+                  background: reportType === r.value ? 'rgba(45,125,70,0.08)' : 'transparent',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <div style={{ fontSize: 22, marginBottom: 6 }}>{r.icon}</div>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, color: reportType === r.value ? 'var(--green-800)' : 'var(--text)' }}>{r.label}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.4 }}>{r.desc}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Period filter + action */}
+          <div className="toolbar">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13, color: 'var(--muted)' }}>Periode:</span>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+              <span style={{ color: 'var(--muted)' }}>s/d</span>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+            </div>
+            <div className="stretch" />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {genError && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{genError}</span>}
+              <button className="btn" onClick={handleGenerate} disabled={generating || generateMut.isPending}>
+                {generating || generateMut.isPending ? '⏳ Memproses...' : `${selectedType?.icon ?? '📄'} Generate ${selectedType?.label ?? ''}`}
+              </button>
+            </div>
+          </div>
+
+          {/* Mini preview */}
+          {selectedType && (
+            <div className="panel-block" style={{ marginTop: 14, display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+              <div style={{
+                width: 90, height: 120, borderRadius: 8,
+                background: 'linear-gradient(160deg, var(--green-900), var(--green-700))',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0, color: 'white', fontSize: 28,
+              }}>
+                {selectedType.icon}
+                <div style={{ fontSize: 9, marginTop: 8, opacity: 0.7, textAlign: 'center', padding: '0 6px' }}>
+                  Plantation PMO
+                </div>
+                <div style={{ fontSize: 8, opacity: 0.5, textAlign: 'center', padding: '2px 6px' }}>
+                  {selectedType.label}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>{selectedType.label}</div>
+                <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 10 }}>{selectedType.desc}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  <span className="chip">Format: PDF</span>
+                  {(dateFrom || dateTo) && (
+                    <span className="chip" style={{ marginLeft: 6 }}>
+                      Periode: {dateFrom || '—'} s/d {dateTo || '—'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Report list */}
+      <div className="section-card glass">
+        <h4 style={{ margin: '0 0 14px', fontSize: 14, color: 'var(--green-800)' }}>Daftar Laporan</h4>
+
+        {reportsQ.isLoading ? (
+          <div className="loading-state">Memuat daftar laporan...</div>
+        ) : reportsQ.error ? (
+          <div className="danger-box">{extractError(reportsQ.error)}</div>
+        ) : reports.length === 0 ? (
+          <div className="empty-state">
+            Belum ada laporan. Pilih jenis laporan dan klik Generate untuk membuat laporan pertama.
+          </div>
         ) : (
-          <div className="table-wrapper">
-            <table className="table">
+          <div className="table-wrap">
+            <table>
               <thead>
                 <tr>
-                  <th>Tipe Laporan</th>
+                  <th>Jenis Laporan</th>
                   <th>Periode</th>
+                  <th>Dibuat</th>
                   <th>Dibuat Oleh</th>
-                  <th>Waktu Generate</th>
                   <th>Status</th>
+                  <th>Aksi</th>
                 </tr>
               </thead>
               <tbody>
-                {reports.map((r) => (
-                  <tr key={r.id}>
-                    <td style={{ fontWeight: 600 }}>{r.report_type}</td>
-                    <td>{formatDate(r.period_start)} – {formatDate(r.period_end)}</td>
-                    <td>{r.generated_by?.full_name ?? '—'}</td>
-                    <td style={{ fontSize: 12 }}>{formatDateTime(r.generated_at)}</td>
-                    <td><span className="badge badge-success">{r.status}</span></td>
-                  </tr>
-                ))}
+                {reports.map((report: any) => {
+                  const st     = STATUS_MAP[report.status] ?? { label: report.status, cls: 'planned' };
+                  const rtype  = REPORT_TYPES.find(r => r.value === report.report_type);
+                  return (
+                    <tr key={report.id}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 20 }}>{rtype?.icon ?? '📄'}</span>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 13 }}>{rtype?.label ?? report.report_type}</div>
+                            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{report.title}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ fontSize: 12, color: 'var(--muted)' }}>
+                        {report.date_from ? `${formatDate(report.date_from)} – ${formatDate(report.date_to)}` : 'Semua periode'}
+                      </td>
+                      <td style={{ fontSize: 12, color: 'var(--muted)' }}>{formatDateTime(report.created_at)}</td>
+                      <td style={{ fontSize: 12 }}>{report.generated_by?.full_name ?? '—'}</td>
+                      <td><span className={`badge ${st.cls}`}>{st.label}</span></td>
+                      <td>
+                        <div className="cluster">
+                          {report.status === 'READY' && report.download_url && (
+                            <a
+                              href={report.download_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="chip clickable"
+                              download
+                            >
+                              ⬇ Unduh
+                            </a>
+                          )}
+                          {report.status === 'FAILED' && (
+                            <span className="chip status-bad">Error</span>
+                          )}
+                          <button
+                            className="chip clickable"
+                            style={{ color: 'var(--danger)' }}
+                            onClick={() => { if (window.confirm('Hapus laporan ini?')) deleteMut.mutate(report.id); }}
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
-
-      <Modal isOpen={showGenerate} onClose={() => setShowGenerate(false)} title="Generate Laporan">
-        <GenerateReportForm
-          projectId={projectId!}
-          onSuccess={() => { setShowGenerate(false); queryClient.invalidateQueries({ queryKey: ['reports', projectId] }); }}
-          onCancel={() => setShowGenerate(false)}
-        />
-      </Modal>
     </div>
-  );
-}
-
-function GenerateReportForm({ projectId, onSuccess, onCancel }: { projectId: string; onSuccess: () => void; onCancel: () => void }) {
-  const [reportType, setReportType] = useState<ReportType>('MONTHLY');
-  const [periodStart, setPeriodStart] = useState('');
-  const [periodEnd, setPeriodEnd] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
-    try {
-      await reportService.generate(projectId, { report_type: reportType, period_start: periodStart, period_end: periodEnd });
-      onSuccess();
-    } catch (err) { setError(extractError(err)); }
-    finally { setIsLoading(false); }
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      {error && <div className="error-state" style={{ marginBottom: 12 }}>{error}</div>}
-      <div className="form-group">
-        <label className="form-label">Tipe Laporan <span className="required">*</span></label>
-        <select className="form-control" value={reportType} onChange={(e) => setReportType(e.target.value as ReportType)}>
-          <option value="WEEKLY">Mingguan</option>
-          <option value="MONTHLY">Bulanan</option>
-          <option value="PROGRESS">Progress Report</option>
-          <option value="COST">Cost Report</option>
-          <option value="SUMMARY">Summary Report</option>
-        </select>
-      </div>
-      <div className="grid-2">
-        <div className="form-group">
-          <label className="form-label">Dari Tanggal <span className="required">*</span></label>
-          <input type="date" className="form-control" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} required />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Sampai Tanggal <span className="required">*</span></label>
-          <input type="date" className="form-control" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} required min={periodStart} />
-        </div>
-      </div>
-      <div className="btn-group" style={{ justifyContent: 'flex-end' }}>
-        <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={isLoading}>Batal</button>
-        <button type="submit" className="btn btn-primary" disabled={isLoading}>
-          {isLoading ? 'Generating...' : 'Generate Laporan'}
-        </button>
-      </div>
-    </form>
   );
 }
