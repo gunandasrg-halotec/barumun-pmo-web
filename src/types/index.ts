@@ -3,6 +3,7 @@
 export interface Role {
   id: string;
   name: string;
+  code: string;
 }
 
 export interface User {
@@ -11,6 +12,9 @@ export interface User {
   email: string;
   is_active: boolean;
   role: Role;
+  last_login_at: string;
+  phone: string;
+  created_at?: string;
 }
 
 export interface AuthState {
