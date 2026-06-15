@@ -93,7 +93,7 @@ export default function SCurvePage() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['scurve', projectId],
-    queryFn: () => analyticsService.scurve(projectId!),
+    queryFn: () => analyticsService.sCurve(projectId!),
     enabled: !!projectId,
   });
 
