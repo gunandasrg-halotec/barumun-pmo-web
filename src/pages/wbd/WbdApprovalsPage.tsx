@@ -129,10 +129,10 @@ export default function WbdApprovalsPage() {
         onClose={() => { setRejectTarget(null); setRejectReason(''); }}
         title="Tolak WBD"
       >
-        <div className="form-group">
-          <label className="form-label">Alasan Penolakan <span className="required">*</span></label>
+        <div className="form-grid field">
+          <label >Alasan Penolakan <span className="required">*</span></label>
           <textarea
-            className="form-control"
+            
             rows={4}
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
