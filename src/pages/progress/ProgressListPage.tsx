@@ -5,14 +5,30 @@ import { progressService } from '../../services/progressService';
 import { wbdService } from '../../services/wbdService';
 import { projectService } from '../../services/projectService';
 import { useAuth } from '../../context/AuthContext';
-import StatusBadge from '../../components/ui/StatusBadge';
-import LoadingState from '../../components/ui/LoadingState';
-import EmptyState from '../../components/ui/EmptyState';
-import ErrorState from '../../components/ui/ErrorState';
-import Pagination from '../../components/ui/Pagination';
-import Modal from '../../components/ui/Modal';
-import { formatDate, formatDateTime, formatNumber, extractError } from '../../utils/format';
+import { formatCurrency, formatDate, formatDateTime, formatNumber, extractError } from '../../utils/format';
 import type { WbdNode } from '../../types';
+
+const STATUS_MAP: Record<string, { label: string; cls: string }> = {
+  PENDING_PM_APPROVAL: { label: 'Menunggu PM',   cls: 'delay'   },
+  AUTO_APPROVED:       { label: 'Auto Disetujui', cls: 'running' },
+  APPROVED:            { label: 'Disetujui',      cls: 'done'    },
+  REJECTED:            { label: 'Ditolak',        cls: 'delay'   },
+};
+
+const STATUS_FILTERS = [
+  { value: '',                    label: 'Semua Status'   },
+  { value: 'PENDING_PM_APPROVAL', label: 'Menunggu PM'    },
+  { value: 'AUTO_APPROVED',       label: 'Auto Disetujui' },
+  { value: 'APPROVED',            label: 'Disetujui'      },
+  { value: 'REJECTED',            label: 'Ditolak'        },
+];
+
+function flattenNodes(nodes: WbdNode[], prefix = ''): { id: string; label: string; unit: string }[] {
+  return nodes.flatMap(n => [
+    ...(n.node_type === 'ITEM' ? [{ id: n.id, label: `${prefix}${n.code} — ${n.name}`, unit: n.unit ?? '' }] : []),
+    ...(n.children?.length ? flattenNodes(n.children, prefix + '  ') : []),
+  ]);
+}
 
 export default function ProgressListPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -20,11 +36,11 @@ export default function ProgressListPage() {
   const queryClient = useQueryClient();
 
   const [statusFilter, setStatusFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [page, setPage] = useState(1);
-  const [showCreate, setShowCreate] = useState(false);
-  const [rejectModal, setRejectModal] = useState<{ id: string } | null>(null);
+  const [dateFrom,     setDateFrom]     = useState('');
+  const [dateTo,       setDateTo]       = useState('');
+  const [page, setPage]                 = useState(1);
+  const [showCreate,   setShowCreate]   = useState(false);
+  const [rejectModal,  setRejectModal]  = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
   const projectQ = useQuery({ queryKey: ['project', projectId], queryFn: () => projectService.get(projectId!) });
@@ -38,8 +54,7 @@ export default function ProgressListPage() {
     }),
   });
 
-  // For the entry form — get active baseline WBD nodes
-  const activeVersionId = projectQ.data?.data?.active_wbd_version?.id;
+  const activeVersionId = (projectQ.data as any)?.data?.active_wbd_version?.id;
   const nodesQ = useQuery({
     queryKey: ['wbd-nodes', activeVersionId],
     queryFn: () => wbdService.getNodes(activeVersionId!),
@@ -59,214 +74,433 @@ export default function ProgressListPage() {
     },
   });
 
-  const entries = progressQ.data?.data ?? [];
-  const meta = progressQ.data?.meta;
+  const entries   = (progressQ.data as any)?.data ?? [];
+  const meta      = (progressQ.data as any)?.meta;
+  const itemNodes = flattenNodes((nodesQ.data as any)?.data ?? []);
+  const hasBaseline = (projectQ.data as any)?.data?.has_active_baseline;
 
-  // Flatten nodes for select
-  const flattenNodes = (nodes: WbdNode[], prefix = ''): { id: string; label: string }[] =>
-    nodes.flatMap((n) => [
-      ...(n.node_type === 'ITEM' ? [{ id: n.id, label: `${prefix}${n.code} — ${n.name}` }] : []),
-      ...(n.children?.length ? flattenNodes(n.children, prefix + '  ') : []),
-    ]);
-
-  const itemNodes = flattenNodes(nodesQ.data?.data ?? []);
-  const hasBaseline = projectQ.data?.data?.has_active_baseline;
+  const totalVolReal  = entries.reduce((s: number, e: any) => s + Number(e.progress_volume ?? 0), 0);
+  const totalCostReal = entries.reduce((s: number, e: any) => s + Number(e.actual_cost ?? 0), 0);
+  const updatedToday  = entries.filter((e: any) => formatDate(e.progress_date) === formatDate(new Date().toISOString())).length;
+  const pendingCount  = entries.filter((e: any) => e.status === 'PENDING_PM_APPROVAL').length;
 
   return (
     <div>
-      <div className="page-header">
-        <div className="page-header-row">
+      {/* Header */}
+      <div className="section-card glass" style={{ marginBottom: 18 }}>
+        <div className="section-title">
           <div>
-            <h1>Progress Pekerjaan</h1>
-            <p>Input dan persetujuan progress proyek</p>
+            <h3>Input Progress Pekerjaan</h3>
+            <p>Rekam realisasi lapangan per item WBD. Progress diakumulasi dan diverifikasi PM sebelum masuk ke S-Curve.</p>
           </div>
-          {canInputProgress() && (
-            <button
-              className="btn btn-primary"
-              onClick={() => setShowCreate(true)}
-              disabled={!hasBaseline}
-              title={!hasBaseline ? 'Proyek belum memiliki baseline aktif' : ''}
-            >
-              + Input Progress
-            </button>
-          )}
+          <div className="cluster">
+            {!hasBaseline && <span className="chip status-warn">Baseline belum aktif</span>}
+            {canInputProgress() && (
+              <button
+                className="btn"
+                onClick={() => setShowCreate(true)}
+                disabled={!hasBaseline}
+                title={!hasBaseline ? 'Proyek belum memiliki baseline aktif' : ''}
+              >
+                + Input Progress
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="summary-bar">
+          <div className="summary-item">
+            <span>Total Volume Realisasi</span>
+            <strong>{formatNumber(totalVolReal)}</strong>
+          </div>
+          <div className="summary-item">
+            <span>Total Biaya Realisasi</span>
+            <strong>{formatCurrency(totalCostReal)}</strong>
+          </div>
+          <div className="summary-item">
+            <span>Diupdate Hari Ini</span>
+            <strong style={{ color: 'var(--green-700)' }}>{updatedToday}</strong>
+          </div>
+          <div className="summary-item">
+            <span>Menunggu Persetujuan</span>
+            <strong style={{ color: 'var(--warning)' }}>{pendingCount}</strong>
+          </div>
         </div>
       </div>
 
-      {!hasBaseline && (
-        <div className="warning-box" style={{ marginBottom: 16 }}>
-          ⚠️ Proyek belum memiliki baseline WBD aktif. Progress tidak dapat diinput.
+      {/* Main table */}
+      <div className="section-card glass">
+        <div className="toolbar">
+          <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
+            {STATUS_FILTERS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={e => { setDateFrom(e.target.value); setPage(1); }}
+            title="Dari tanggal"
+          />
+          <span style={{ color: 'var(--muted)', fontSize: 12 }}>s/d</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={e => { setDateTo(e.target.value); setPage(1); }}
+            title="Sampai tanggal"
+          />
+          <div className="stretch" />
+          <button className="btn secondary" onClick={() => { setStatusFilter(''); setDateFrom(''); setDateTo(''); setPage(1); }}>
+            Reset
+          </button>
         </div>
-      )}
 
-      <div className="card">
-        <div className="card-body" style={{ paddingBottom: 0 }}>
-          <div className="filter-bar">
-            <select className="form-control" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
-              <option value="">Semua Status</option>
-              <option value="PENDING_PM_APPROVAL">Menunggu PM</option>
-              <option value="AUTO_APPROVED">Auto-Approved</option>
-              <option value="APPROVED">Disetujui</option>
-              <option value="REJECTED">Ditolak</option>
-            </select>
-            <input type="date" className="form-control" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} placeholder="Dari tanggal" />
-            <input type="date" className="form-control" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} placeholder="Sampai tanggal" />
+        {progressQ.isLoading ? (
+          <div className="loading-state">Memuat data progress...</div>
+        ) : progressQ.error ? (
+          <div className="danger-box">
+            {extractError(progressQ.error)} —{' '}
+            <button className="btn secondary" style={{ marginLeft: 8 }} onClick={() => progressQ.refetch()}>Coba Lagi</button>
           </div>
-        </div>
-
-        {progressQ.isLoading ? <LoadingState /> : progressQ.error ? (
-          <ErrorState message={extractError(progressQ.error)} onRetry={() => progressQ.refetch()} />
         ) : entries.length === 0 ? (
-          <EmptyState title="Belum ada progress" message="Input progress untuk mulai memantau." />
+          <div className="empty-state">
+            Belum ada data progress.
+            {canInputProgress() && hasBaseline && (
+              <div style={{ marginTop: 12 }}>
+                <button className="btn" onClick={() => setShowCreate(true)}>+ Input Progress Pertama</button>
+              </div>
+            )}
+            {!hasBaseline && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>Aktifkan baseline WBD terlebih dahulu.</div>}
+          </div>
         ) : (
           <>
-            <div className="table-wrapper">
-              <table className="table">
+            <div className="table-wrap">
+              <table>
                 <thead>
                   <tr>
-                    <th>Item WBD</th>
-                    <th>Tanggal</th>
-                    <th>Volume</th>
-                    <th>Diinput Oleh</th>
+                    <th>No</th>
+                    <th>Uraian Pekerjaan</th>
+                    <th>Grup</th>
+                    <th>Vol. Rencana</th>
+                    <th>Vol. Realisasi</th>
+                    <th>Sisa Volume</th>
+                    <th>Biaya Rencana</th>
+                    <th>Biaya Realisasi</th>
+                    <th>Sisa Biaya</th>
+                    <th>Update Terakhir</th>
                     <th>Status</th>
-                    <th>Disetujui / Ditolak</th>
                     <th>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {entries.map((entry) => (
-                    <tr key={entry.id}>
-                      <td>
-                        <div style={{ fontWeight: 500 }}>{entry.wbd_node?.name ?? '—'}</div>
-                        <div className="text-sm text-muted">{entry.wbd_node?.code}</div>
-                      </td>
-                      <td>{formatDate(entry.progress_date)}</td>
-                      <td>
-                        {formatNumber(entry.progress_volume)} {entry.wbd_node?.unit ?? ''}
-                      </td>
-                      <td>
-                        <div>{entry.entered_by?.full_name ?? '—'}</div>
-                        <div className="text-sm text-muted">{entry.entered_by?.role}</div>
-                      </td>
-                      <td><StatusBadge status={entry.status} /></td>
-                      <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                        {entry.approved_by ? (
-                          <span className="text-success">✓ {entry.approved_by.full_name}<br />{formatDateTime(entry.approved_at)}</span>
-                        ) : entry.rejected_by ? (
-                          <span className="text-danger">✕ {entry.rejected_by.full_name}<br />{entry.rejection_reason}</span>
-                        ) : '—'}
-                      </td>
-                      <td>
-                        {canApproveProgress() && entry.status === 'PENDING_PM_APPROVAL' && (
-                          <div className="btn-group">
-                            <button className="btn btn-sm btn-success" onClick={() => approveMut.mutate(entry.id)}>✓</button>
-                            <button className="btn btn-sm btn-danger" onClick={() => { setRejectModal({ id: entry.id }); }}>✕</button>
+                  {entries.map((entry: any, idx: number) => {
+                    const st       = STATUS_MAP[entry.status] ?? { label: entry.status, cls: 'planned' };
+                    const volPlan  = Number(entry.wbd_node?.volume ?? 0);
+                    const volReal  = Number(entry.progress_volume ?? 0);
+                    const volSisa  = Math.max(0, volPlan - volReal);
+                    const costPlan = Number(entry.wbd_node?.planned_cost ?? 0);
+                    const costReal = Number(entry.actual_cost ?? 0);
+                    const costSisa = costPlan - costReal;
+                    const isOver   = costReal > costPlan && costPlan > 0;
+                    const pct      = volPlan > 0 ? Math.min(100, Math.round((volReal / volPlan) * 100)) : 0;
+
+                    return (
+                      <tr key={entry.id}>
+                        <td style={{ color: 'var(--muted)', fontSize: 12 }}>{((page - 1) * 20) + idx + 1}</td>
+                        <td>
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>{entry.wbd_node?.name ?? '—'}</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)' }}>{entry.wbd_node?.code}</div>
+                        </td>
+                        <td style={{ fontSize: 12 }}>{entry.wbd_node?.group_name ?? '—'}</td>
+                        <td style={{ fontSize: 12 }}>
+                          {formatNumber(volPlan)} <span style={{ color: 'var(--muted)' }}>{entry.wbd_node?.unit}</span>
+                        </td>
+                        <td>
+                          <div style={{ fontSize: 12, fontWeight: 600 }}>
+                            {formatNumber(volReal)} <span style={{ color: 'var(--muted)' }}>{entry.wbd_node?.unit}</span>
                           </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                          <div style={{ marginTop: 4, height: 5, background: 'var(--line)', borderRadius: 3, width: 80, overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${pct}%`,
+                              background: isOver
+                                ? 'linear-gradient(90deg,var(--soil),var(--danger))'
+                                : pct >= 100
+                                  ? 'linear-gradient(90deg,var(--green-700),var(--green-500))'
+                                  : 'linear-gradient(90deg,var(--green-800),var(--green-600))',
+                              borderRadius: 3,
+                            }} />
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{pct}%</div>
+                        </td>
+                        <td style={{ fontSize: 12, color: volSisa === 0 ? 'var(--ok)' : 'inherit' }}>
+                          {formatNumber(volSisa)} <span style={{ color: 'var(--muted)' }}>{entry.wbd_node?.unit}</span>
+                        </td>
+                        <td style={{ fontSize: 12 }}>{formatCurrency(costPlan)}</td>
+                        <td style={{ fontSize: 12, fontWeight: 600, color: isOver ? 'var(--danger)' : 'inherit' }}>
+                          {formatCurrency(costReal)}
+                        </td>
+                        <td style={{ fontSize: 12, color: isOver ? 'var(--danger)' : 'inherit' }}>
+                          {isOver ? `+${formatCurrency(Math.abs(costSisa))}` : formatCurrency(costSisa)}
+                        </td>
+                        <td style={{ fontSize: 11, color: 'var(--muted)' }}>
+                          <div>{formatDate(entry.progress_date)}</div>
+                          <div>{entry.entered_by?.full_name ?? '—'}</div>
+                        </td>
+                        <td>
+                          <span className={`badge ${st.cls}`}>{st.label}</span>
+                          {isOver && <div><span className="badge delay" style={{ marginTop: 3, fontSize: 10 }}>Over Budget</span></div>}
+                        </td>
+                        <td>
+                          <div className="cluster">
+                            {canApproveProgress() && entry.status === 'PENDING_PM_APPROVAL' && (
+                              <>
+                                <button
+                                  className="chip clickable"
+                                  style={{ color: 'var(--ok)' }}
+                                  onClick={() => approveMut.mutate(entry.id)}
+                                  disabled={approveMut.isPending}
+                                >
+                                  ✓ Setujui
+                                </button>
+                                <button
+                                  className="chip clickable"
+                                  style={{ color: 'var(--danger)' }}
+                                  onClick={() => setRejectModal(entry.id)}
+                                >
+                                  ✕ Tolak
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-            {meta && (
-              <div style={{ padding: '16px 20px' }}>
-                <Pagination page={meta.page} total={meta.total} limit={meta.limit} onChange={setPage} />
+
+            {meta && meta.total > meta.limit && (
+              <div style={{ display: 'flex', gap: 8, padding: '14px 0 0', alignItems: 'center', fontSize: 13 }}>
+                <button className="btn secondary" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
+                <span style={{ color: 'var(--muted)' }}>Halaman {meta.page} dari {Math.ceil(meta.total / meta.limit)}</span>
+                <button className="btn secondary" disabled={page >= Math.ceil(meta.total / meta.limit)} onClick={() => setPage(p => p + 1)}>Next →</button>
               </div>
             )}
           </>
         )}
       </div>
 
-      {/* Create Progress Modal */}
-      <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="Input Progress Pekerjaan">
-        <ProgressCreateForm
-          projectId={projectId!}
-          itemNodes={itemNodes}
-          onSuccess={() => { setShowCreate(false); queryClient.invalidateQueries({ queryKey: ['progress', projectId] }); }}
-          onCancel={() => setShowCreate(false)}
-        />
-      </Modal>
+      {/* Activity log + status legend */}
+      <div className="editor-layout" style={{ marginTop: 18 }}>
+        <div className="editor-card glass">
+          <h4 style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--green-800)' }}>Log Aktivitas Progress</h4>
+          {entries.length === 0 ? (
+            <div className="empty-state">Belum ada aktivitas</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {entries.slice(0, 8).map((entry: any) => {
+                const st = STATUS_MAP[entry.status] ?? { label: entry.status, cls: 'planned' };
+                return (
+                  <div key={entry.id} className="panel-block" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong style={{ fontSize: 13 }}>{entry.wbd_node?.name ?? '—'}</strong>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                        {entry.entered_by?.full_name} · {formatDateTime(entry.created_at ?? entry.progress_date)}
+                      </div>
+                    </div>
+                    <span className={`badge ${st.cls}`}>{st.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="section-card glass" style={{ margin: 0 }}>
+            <h4 style={{ margin: '0 0 10px', fontSize: 14, color: 'var(--green-800)' }}>Logika Status Otomatis</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 }}>
+              {[
+                { cls: 'delay',   label: 'Menunggu PM',    desc: 'Progress baru diinput, menunggu verifikasi Project Manager.' },
+                { cls: 'running', label: 'Auto Disetujui', desc: 'Disetujui otomatis jika volume < 5% rencana dan Admin Proyek yang input.' },
+                { cls: 'done',    label: 'Disetujui',      desc: 'PM sudah memverifikasi dan menyetujui realisasi lapangan.' },
+                { cls: 'delay',   label: 'Ditolak',        desc: 'PM menolak — data harus diperbaiki dan diinput ulang.' },
+              ].map((s, i) => (
+                <div key={i} className="panel-block" style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span className={`badge ${s.cls}`} style={{ marginTop: 1, flexShrink: 0 }}>{s.label}</span>
+                  <span style={{ color: 'var(--muted)' }}>{s.desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="section-card glass" style={{ margin: 0 }}>
+            <h4 style={{ margin: '0 0 10px', fontSize: 14, color: 'var(--green-800)' }}>Catatan Penting</h4>
+            <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="panel-block">Progress yang disetujui masuk ke kalkulasi S-Curve dan Cost Analysis.</div>
+              <div className="panel-block">
+                Volume realisasi melebihi rencana akan ditandai{' '}
+                <span className="badge delay" style={{ fontSize: 10 }}>Over Budget</span>.
+              </div>
+              <div className="panel-block">Data yang sudah disetujui tidak dapat diedit — input ulang jika ada koreksi.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Input Progress Modal */}
+      {showCreate && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowCreate(false); }}>
+          <div className="modal-window" style={{ maxWidth: 620 }}>
+            <div className="modal-head">
+              <div>
+                <h4>Input Progress Pekerjaan</h4>
+                <p>Rekam realisasi volume dan biaya untuk item WBD dari lapangan.</p>
+              </div>
+              <button className="modal-close" onClick={() => setShowCreate(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <ProgressCreateForm
+                projectId={projectId!}
+                itemNodes={itemNodes}
+                onSuccess={() => { setShowCreate(false); queryClient.invalidateQueries({ queryKey: ['progress', projectId] }); }}
+                onCancel={() => setShowCreate(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reject Modal */}
-      <Modal
-        isOpen={!!rejectModal}
-        onClose={() => setRejectModal(null)}
-        title="Tolak Progress"
-        footer={
-          <>
-            <button className="btn btn-secondary" onClick={() => setRejectModal(null)}>Batal</button>
-            <button
-              className="btn btn-danger"
-              disabled={!rejectReason.trim() || rejectMut.isPending}
-              onClick={() => rejectModal && rejectMut.mutate({ id: rejectModal.id, reason: rejectReason })}
-            >
-              Tolak
-            </button>
-          </>
-        }
-      >
-        <div className="form-group">
-          <label className="form-label">Alasan Penolakan <span className="required">*</span></label>
-          <textarea className="form-control" rows={3} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
+      {rejectModal && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setRejectModal(null); }}>
+          <div className="modal-window" style={{ maxWidth: 500 }}>
+            <div className="modal-head">
+              <div>
+                <h4>Tolak Progress</h4>
+                <p>Berikan alasan agar tim lapangan dapat memperbaiki data.</p>
+              </div>
+              <button className="modal-close" onClick={() => setRejectModal(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="field">
+                <label>Alasan Penolakan *</label>
+                <textarea
+                  rows={4}
+                  value={rejectReason}
+                  onChange={e => setRejectReason(e.target.value)}
+                  placeholder="Jelaskan alasan penolakan progress ini..."
+                  style={{ width: '100%', borderRadius: 12, border: '1px solid var(--line)', padding: '10px 14px', font: 'inherit', fontSize: 13 }}
+                />
+              </div>
+            </div>
+            <div className="modal-foot">
+              <div />
+              <div className="cluster">
+                <button className="btn secondary" onClick={() => setRejectModal(null)}>Batal</button>
+                <button
+                  className="btn danger"
+                  disabled={!rejectReason.trim() || rejectMut.isPending}
+                  onClick={() => rejectMut.mutate({ id: rejectModal, reason: rejectReason })}
+                >
+                  Tolak Progress
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-      </Modal>
+      )}
     </div>
   );
 }
 
 function ProgressCreateForm({
   projectId, itemNodes, onSuccess, onCancel,
-}: { projectId: string; itemNodes: { id: string; label: string }[]; onSuccess: () => void; onCancel: () => void }) {
-  const [form, setForm] = useState({ wbd_node_id: '', progress_date: '', progress_volume: '', note: '' });
+}: { projectId: string; itemNodes: { id: string; label: string; unit: string }[]; onSuccess: () => void; onCancel: () => void }) {
+  const [form, setForm]       = useState({ wbd_node_id: '', progress_date: '', progress_volume: '', actual_cost: '', note: '' });
+  const [preview, setPreview] = useState<{ label: string; unit: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError]     = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  function handleNodeSelect(id: string) {
+    const node = itemNodes.find(n => n.id === id);
+    setForm(p => ({ ...p, wbd_node_id: id }));
+    setPreview(node ? { label: node.label, unit: node.unit } : null);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError('');
-    setIsLoading(true);
+    setError(''); setIsLoading(true);
     try {
       await progressService.create(projectId, {
-        wbd_node_id: form.wbd_node_id,
-        progress_date: form.progress_date,
+        wbd_node_id:     form.wbd_node_id,
+        progress_date:   form.progress_date,
         progress_volume: parseFloat(form.progress_volume),
-        note: form.note || undefined,
+        note:            form.note || undefined,
       });
       onSuccess();
     } catch (err) { setError(extractError(err)); }
     finally { setIsLoading(false); }
-  };
+  }
 
   return (
     <form onSubmit={handleSubmit}>
-      {error && <div className="error-state" style={{ marginBottom: 12 }}>{error}</div>}
-      <div className="form-group">
-        <label className="form-label">Item Pekerjaan <span className="required">*</span></label>
-        <select className="form-control" value={form.wbd_node_id} onChange={(e) => setForm((p) => ({ ...p, wbd_node_id: e.target.value }))} required>
-          <option value="">Pilih item pekerjaan...</option>
-          {itemNodes.map((n) => <option key={n.id} value={n.id}>{n.label}</option>)}
+      {error && <div className="danger-box" style={{ marginBottom: 12 }}>{error}</div>}
+
+      <div className="field">
+        <label>Item Pekerjaan *</label>
+        <select value={form.wbd_node_id} onChange={e => handleNodeSelect(e.target.value)} required style={{ width: '100%' }}>
+          <option value="">Pilih item pekerjaan WBD...</option>
+          {itemNodes.map(n => <option key={n.id} value={n.id}>{n.label}</option>)}
         </select>
       </div>
-      <div className="grid-2">
-        <div className="form-group">
-          <label className="form-label">Tanggal Progress <span className="required">*</span></label>
-          <input type="date" className="form-control" value={form.progress_date} onChange={(e) => setForm((p) => ({ ...p, progress_date: e.target.value }))} required />
+
+      {preview && (
+        <div className="panel-block" style={{ marginBottom: 14, fontSize: 12, color: 'var(--muted)' }}>
+          <strong style={{ color: 'var(--green-800)' }}>Item dipilih:</strong> {preview.label}
+          {preview.unit && <> · Satuan: <span className="chip" style={{ fontSize: 11 }}>{preview.unit}</span></>}
         </div>
-        <div className="form-group">
-          <label className="form-label">Volume Progress <span className="required">*</span></label>
-          <input type="number" className="form-control" value={form.progress_volume} onChange={(e) => setForm((p) => ({ ...p, progress_volume: e.target.value }))} step="0.0001" min="0.0001" required />
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field">
+          <label>Tanggal Progress *</label>
+          <input type="date" value={form.progress_date} onChange={e => setForm(p => ({ ...p, progress_date: e.target.value }))} required />
+        </div>
+        <div className="field">
+          <label>Volume Realisasi * {preview?.unit && <span style={{ color: 'var(--muted)', fontWeight: 400 }}>({preview.unit})</span>}</label>
+          <input type="number" value={form.progress_volume} onChange={e => setForm(p => ({ ...p, progress_volume: e.target.value }))} step="0.0001" min="0.0001" placeholder="0.0000" required />
         </div>
       </div>
-      <div className="form-group">
-        <label className="form-label">Catatan</label>
-        <textarea className="form-control" value={form.note} onChange={(e) => setForm((p) => ({ ...p, note: e.target.value }))} rows={2} />
+
+      <div className="field">
+        <label>Biaya Realisasi (Rp) <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— opsional</span></label>
+        <input type="number" value={form.actual_cost} onChange={e => setForm(p => ({ ...p, actual_cost: e.target.value }))} step="1" min="0" placeholder="0" />
       </div>
-      <div className="btn-group" style={{ justifyContent: 'flex-end' }}>
-        <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={isLoading}>Batal</button>
-        <button type="submit" className="btn btn-primary" disabled={isLoading}>
-          {isLoading ? 'Menyimpan...' : 'Simpan Progress'}
-        </button>
+
+      <div className="field">
+        <label>Catatan Lapangan</label>
+        <textarea
+          value={form.note}
+          onChange={e => setForm(p => ({ ...p, note: e.target.value }))}
+          rows={3}
+          placeholder="Kondisi lapangan, kendala, atau keterangan tambahan..."
+          style={{ width: '100%' }}
+        />
+      </div>
+
+      <div className="panel-block" style={{ marginBottom: 14, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
+        <div style={{ fontSize: 22, marginBottom: 4 }}>📎</div>
+        Upload Foto / Bukti Lapangan
+        <div style={{ fontSize: 11, marginTop: 2 }}>(Fitur upload dokumen tersedia di halaman Documents)</div>
+      </div>
+
+      <div className="modal-foot" style={{ padding: 0, marginTop: 4 }}>
+        <div />
+        <div className="cluster">
+          <button type="button" className="btn secondary" onClick={onCancel} disabled={isLoading}>Batal</button>
+          <button type="submit" className="btn" disabled={isLoading}>{isLoading ? 'Menyimpan...' : 'Simpan Progress'}</button>
+        </div>
       </div>
     </form>
   );
