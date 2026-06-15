@@ -1,254 +1,215 @@
-import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { analyticsService } from "../../services/analyticsService";
-import { projectService } from "../../services/projectService";
-import LoadingState from "../../components/ui/LoadingState";
-import ErrorState from "../../components/ui/ErrorState";
-import StatusBadge from "../../components/ui/StatusBadge";
-import { formatCurrency, formatDate, extractError } from "../../utils/format";
+import { useParams, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { analyticsService } from '../../services/analyticsService';
+import { projectService } from '../../services/projectService';
+import { formatCurrency, formatDate, extractError } from '../../utils/format';
 
-function StatCard({
-  label,
-  value,
-  sub,
-  color = "",
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  color?: string;
-}) {
-  return (
-    <div className={`card stat-card`}>
-      <div className="stat-label">{label}</div>
-      <div className={`stat-value ${color}`}>{value}</div>
-      {sub && <div className="stat-sub text-muted text-sm">{sub}</div>}
-    </div>
-  );
-}
+const STATUS_MAP: Record<string, { label: string; cls: string }> = {
+  PLANNING:  { label: 'Planning',   cls: 'planned' },
+  ACTIVE:    { label: 'Berjalan',   cls: 'running' },
+  ON_HOLD:   { label: 'On Hold',    cls: 'delay'   },
+  COMPLETED: { label: 'Selesai',    cls: 'done'    },
+  CANCELLED: { label: 'Dibatalkan', cls: 'delay'   },
+};
+
+const SHORTCUTS = [
+  { label: 'WBD',           sub: 'Struktur pekerjaan & biaya',  path: 'wbd'           },
+  { label: 'Gantt',         sub: 'Timeline pekerjaan',          path: 'gantt'         },
+  { label: 'Progress',      sub: 'Input realisasi lapangan',     path: 'progress'      },
+  { label: 'Documents',     sub: 'Kontrak & bukti lapangan',     path: 'files'         },
+  { label: 'S-Curve',       sub: 'Plan vs actual',              path: 's-curve'       },
+  { label: 'Cost Analysis', sub: 'Biaya & deviasi',             path: 'cost-analysis' },
+  { label: 'Reports',       sub: 'Generate laporan',            path: 'reports'       },
+];
+
+const GROUP_COLORS = [
+  'linear-gradient(90deg, #2d7d46, #68a56c)',
+  'linear-gradient(90deg, #8c6a18, #cf9f3c)',
+  'linear-gradient(90deg, #4d7f79, #6cb0a7)',
+  'linear-gradient(90deg, #a95d35, #d8824d)',
+  'linear-gradient(90deg, #87553f, #c08257)',
+  'linear-gradient(90deg, #58656f, #7b8b97)',
+];
 
 export default function ProjectDashboardPage() {
   const { projectId } = useParams<{ projectId: string }>();
 
   const projectQ = useQuery({
-    queryKey: ["project", projectId],
+    queryKey: ['project', projectId],
     queryFn: () => projectService.get(projectId!),
     enabled: !!projectId,
-    gcTime: 0,
   });
 
   const dashQ = useQuery({
-    queryKey: ["dashboard", projectId],
+    queryKey: ['dashboard', projectId],
     queryFn: () => analyticsService.dashboard(projectId!),
     enabled: !!projectId,
-    gcTime: 0,
   });
 
-  if (projectQ.isLoading || dashQ.isLoading) return <LoadingState />;
-  if (projectQ.error)
-    return <ErrorState message={extractError(projectQ.error)} />;
+  if (projectQ.isLoading || dashQ.isLoading) {
+    return <div className="loading-state">Memuat dashboard proyek...</div>;
+  }
+  if (projectQ.error) {
+    return <div className="danger-box">{extractError(projectQ.error)}</div>;
+  }
 
-  const project = projectQ.data?.data;
-  const dash = dashQ.data?.data;
+  const project = (projectQ.data as any)?.data;
+  const dash    = (dashQ.data as any)?.data;
+  const st      = STATUS_MAP[project?.status] ?? { label: project?.status, cls: 'planned' };
 
-  const shortcuts = [
-    {
-      label: "📋 WBD",
-      to: `/projects/${projectId}/wbd`,
-      desc: "Work Breakdown Detail",
-    },
-    {
-      label: "📅 Gantt",
-      to: `/projects/${projectId}/gantt`,
-      desc: "Jadwal Proyek",
-    },
-    {
-      label: "📈 Progress",
-      to: `/projects/${projectId}/progress`,
-      desc: "Input & Approval",
-    },
-    {
-      label: "💰 Biaya",
-      to: `/projects/${projectId}/costs`,
-      desc: "Actual Cost",
-    },
-    {
-      label: "🗂️ Files",
-      to: `/projects/${projectId}/files`,
-      desc: "Dokumen & Foto",
-    },
-    {
-      label: "📊 Laporan",
-      to: `/projects/${projectId}/reports`,
-      desc: "Generate Laporan",
-    },
-  ];
+  const totalCost    = dash?.total_baseline_cost    ?? 0;
+  const actualCost   = dash?.total_actual_cost_approved ?? 0;
+  const deviation    = dash?.cost_deviation_percent ?? 0;
+  const progressPct  = dash?.overall_progress_percent ?? 0;
+
+  const nodes: any[] = dash?.nodes ?? [];
+  const groups = nodes.filter((n: any) => n.node_type === 'GROUP');
 
   return (
     <div>
-      <div className="page-header">
-        <div className="page-header-row">
-          <div>
-            <h1>{project?.project_name}</h1>
-            <p>
-              {project?.client_name} · {project?.location}
-            </p>
+      {/* Hero */}
+      <div className="hero">
+        <div className="hero-card">
+          <div className="brand-tag">Executive Overview</div>
+          <h3>{project?.project_name}</h3>
+          <p>{project?.client_name} · {project?.location} · {formatDate(project?.start_date)} – {formatDate(project?.end_date)}</p>
+          <div className="hero-grid">
+            <div className="hero-stat">
+              <strong>{formatCurrency(totalCost)}</strong>
+              <span>Total biaya baseline</span>
+            </div>
+            <div className="hero-stat">
+              <strong>{progressPct}%</strong>
+              <span>Progress resmi kumulatif</span>
+            </div>
+            <div className="hero-stat">
+              <strong>{project?.active_wbd_version ? `v${project.active_wbd_version.version_number}` : '—'}</strong>
+              <span>Baseline aktif</span>
+            </div>
           </div>
-          {project && <StatusBadge status={project.status} />}
+        </div>
+
+        <div className="metrics">
+          <div className="kpi glass">
+            <label>Total Biaya Proyek</label>
+            <strong>{formatCurrency(totalCost)}</strong>
+            <div className="kpi-bar"><i style={{ width: '82%' }}></i></div>
+          </div>
+          <div className="kpi glass">
+            <label>Biaya Realisasi (Approved)</label>
+            <strong>{formatCurrency(actualCost)}</strong>
+            <div className="kpi-bar"><i style={{ width: `${Math.min(100, (actualCost / (totalCost || 1)) * 100)}%` }}></i></div>
+          </div>
+          <div className="kpi glass">
+            <label>Deviasi Biaya</label>
+            <strong style={{ color: deviation > 0 ? 'var(--danger)' : 'var(--ok)' }}>
+              {deviation > 0 ? '+' : ''}{deviation}%
+            </strong>
+            <div className="kpi-bar">
+              <i style={{ width: `${Math.min(100, Math.abs(deviation) * 5)}%`, background: deviation > 0 ? 'linear-gradient(90deg, var(--soil), var(--danger))' : undefined }}></i>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Project info */}
-      <div className="card" style={{ marginBottom: 24 }}>
-        <div className="card-body">
-          <div className="grid-3" style={{ gap: 24 }}>
-            <div>
-              <div className="text-muted text-sm">Kode Proyek</div>
-              <div style={{ fontWeight: 600, fontFamily: "monospace" }}>
-                {project?.project_code}
-              </div>
-            </div>
-            <div>
-              <div className="text-muted text-sm">Periode</div>
-              <div style={{ fontWeight: 600 }}>
-                {formatDate(project?.start_date)} –{" "}
-                {formatDate(project?.end_date)}
-              </div>
-            </div>
-            <div>
-              <div className="text-muted text-sm">Baseline Aktif</div>
-              <div style={{ fontWeight: 600 }}>
-                {project?.active_wbd_version ? (
-                  <span className="badge badge-success">
-                    Version {project.active_wbd_version.version_number}
-                  </span>
-                ) : (
-                  <span className="badge badge-secondary">
-                    Belum ada baseline
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-          {project?.description && (
-            <div
-              style={{
-                marginTop: 16,
-                color: "var(--text-muted)",
-                fontSize: 13,
-              }}
-            >
-              {project.description}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* KPI Stats */}
-      {dash && !dash.has_baseline ? (
-        <div className="info-box" style={{ marginBottom: 24 }}>
-          ℹ️ Proyek ini belum memiliki baseline WBD yang aktif. Buat dan ajukan
-          WBD untuk mulai memantau proyek.
-          <Link
-            to={`/projects/${projectId}/wbd`}
-            style={{ marginLeft: 8, fontWeight: 600 }}
-          >
+      {/* No baseline warning */}
+      {!dash?.has_baseline && (
+        <div className="danger-box" style={{ marginBottom: 18 }}>
+          Proyek ini belum memiliki baseline WBD yang aktif. Buat dan ajukan WBD untuk mulai memantau proyek.{' '}
+          <Link to={`/projects/${projectId}/wbd`} style={{ color: 'var(--green-700)', fontWeight: 600 }}>
             Kelola WBD →
           </Link>
         </div>
-      ) : dash ? (
-        <div className="stats-grid">
-          <StatCard
-            label="Total Baseline Cost"
-            value={formatCurrency(dash.total_baseline_cost)}
-          />
-          <StatCard
-            label="Actual Cost (Approved)"
-            value={formatCurrency(dash.total_actual_cost_approved)}
-          />
-          <StatCard
-            label="Deviasi Biaya"
-            value={formatCurrency(dash.cost_deviation)}
-            sub={`${dash.cost_deviation_percent}% dari baseline`}
-            color={dash.cost_deviation > 0 ? "text-danger" : "text-success"}
-          />
-          <StatCard
-            label="Progress Resmi"
-            value={String(dash.total_official_progress_entries)}
-            sub="entri approved"
-          />
-          <StatCard
-            label="Menunggu Persetujuan"
-            value={String(dash.pending_progress_approval)}
-            sub="progress pending"
-            color={dash.pending_progress_approval > 0 ? "text-warning" : ""}
-          />
-          <StatCard
-            label="Review Finance"
-            value={String(dash.pending_cost_review)}
-            sub="biaya review"
-            color={dash.pending_cost_review > 0 ? "text-warning" : ""}
-          />
-        </div>
-      ) : null}
+      )}
 
-      {/* Quick navigation */}
-      <div className="card">
-        <div className="card-header">
-          <div className="card-title">Navigasi Cepat</div>
-        </div>
-        <div className="card-body">
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-              gap: 12,
-            }}
-          >
-            {shortcuts.map((s) => (
-              <Link
-                key={s.to}
-                to={s.to}
-                style={{
-                  display: "block",
-                  padding: "16px",
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  textDecoration: "none",
-                  transition: "all 0.15s",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.borderColor =
-                    "var(--primary)";
-                  (e.currentTarget as HTMLElement).style.background =
-                    "var(--primary-light)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.borderColor =
-                    "var(--border)";
-                  (e.currentTarget as HTMLElement).style.background = "";
-                }}
-              >
-                <div style={{ fontSize: 20, marginBottom: 6 }}>
-                  {s.label.split(" ")[0]}
+      {/* Group progress */}
+      {groups.length > 0 && (
+        <div className="section-card glass" style={{ marginBottom: 18 }}>
+          <div className="section-title">
+            <div>
+              <h3>Progress Per Grup Pekerjaan</h3>
+              <p>Capaian progress berdasarkan grup WBD aktif.</p>
+            </div>
+            <div className="cluster">
+              <span className={`chip status-${st.cls}`}>{st.label}</span>
+            </div>
+          </div>
+          <div className="progress-list" style={{ marginTop: 0 }}>
+            {groups.map((g: any, i: number) => {
+              const pct = Math.min(100, Math.round((g.progress_percent ?? 0)));
+              return (
+                <div className="progress-row" key={g.id}>
+                  <div className="progress-head">
+                    <strong>{g.node_name}</strong>
+                    <span>Bobot {g.weight_percent ?? '—'}%</span>
+                  </div>
+                  <div className="progress-track">
+                    <i style={{ width: `${pct}%`, background: GROUP_COLORS[i % GROUP_COLORS.length] }}></i>
+                  </div>
                 </div>
-                <div
-                  style={{
-                    fontWeight: 600,
-                    color: "var(--text)",
-                    fontSize: 13,
-                  }}
-                >
-                  {s.label.split(" ").slice(1).join(" ")}
-                </div>
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {s.desc}
-                </div>
-              </Link>
-            ))}
+              );
+            })}
+          </div>
+          <div className="empty-state" style={{ marginTop: 12, display: groups.length ? 'none' : 'block' }}>
+            Belum ada data progress. Tambahkan WBD baseline terlebih dahulu.
           </div>
         </div>
+      )}
+
+      {/* Quick nav */}
+      <div className="section-card glass">
+        <div className="section-title">
+          <div>
+            <h3>Navigasi Cepat</h3>
+            <p>Akses langsung ke semua modul proyek.</p>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
+          {SHORTCUTS.map(s => (
+            <Link
+              key={s.path}
+              to={`/projects/${projectId}/${s.path}`}
+              className="nav-btn"
+              style={{
+                background: 'rgba(255,255,255,0.85)',
+                color: 'var(--text)',
+                border: '1px solid var(--line)',
+                textDecoration: 'none',
+              }}
+            >
+              <strong style={{ color: 'var(--green-800)' }}>{s.label}</strong>
+              <span style={{ color: 'var(--muted)' }}>{s.sub}</span>
+            </Link>
+          ))}
+        </div>
       </div>
+
+      {/* Pending approvals summary */}
+      {dash && (dash.pending_progress_approval > 0 || dash.pending_cost_review > 0) && (
+        <div className="section-card glass" style={{ marginTop: 18 }}>
+          <div className="section-title">
+            <div><h3>Perlu Perhatian</h3></div>
+          </div>
+          <div className="summary-bar" style={{ position: 'static' }}>
+            <div className="summary-item">
+              <span>Progress Menunggu Approval</span>
+              <strong style={{ color: 'var(--warning)' }}>{dash.pending_progress_approval}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Biaya Menunggu Review</span>
+              <strong style={{ color: 'var(--warning)' }}>{dash.pending_cost_review}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Total Progress Entries</span>
+              <strong>{dash.total_official_progress_entries}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Status Proyek</span>
+              <strong><span className={`badge ${st.cls}`}>{st.label}</span></strong>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
