@@ -25,15 +25,15 @@ interface FieldProps {
   errors: Record<string, string[]>;
   children: React.ReactNode;
 }
- const Field = ({
+const Field = ({
   label,
   name,
   required = false,
   errors,
   children,
 }: FieldProps) => (
-  <div className="form-group">
-    <label className="form-label">
+  <div className="form-grid field">
+    <label >
       {label} {required && <span className="required">*</span>}
     </label>
     {children}
@@ -43,7 +43,7 @@ interface FieldProps {
       </div>
     ))}
   </div>
-);  
+);
 export default function ProjectForm({
   initialData,
   projectId,
@@ -98,8 +98,6 @@ export default function ProjectForm({
     }
   };
 
- 
-
   return (
     <form onSubmit={handleSubmit}>
       {serverError && <div className="error-state">{serverError}</div>}
@@ -108,7 +106,6 @@ export default function ProjectForm({
         <Field label="Kode Proyek" name="project_code" errors={errors} required>
           <input
             type="text"
-            className="form-control"
             value={form.project_code}
             onChange={(e) => handleChange("project_code", e.target.value)}
             required
@@ -118,7 +115,6 @@ export default function ProjectForm({
         </Field>
         <Field label="Status" name="status" errors={errors}>
           <select
-            className="form-control"
             value={form.status}
             onChange={(e) => handleChange("status", e.target.value)}
           >
@@ -133,7 +129,6 @@ export default function ProjectForm({
       <Field label="Nama Proyek" name="project_name" errors={errors} required>
         <input
           type="text"
-          className="form-control"
           value={form.project_name}
           onChange={(e) => handleChange("project_name", e.target.value)}
           required
@@ -145,7 +140,6 @@ export default function ProjectForm({
         <Field label="Client" name="client_name" errors={errors} required>
           <input
             type="text"
-            className="form-control"
             value={form.client_name}
             onChange={(e) => handleChange("client_name", e.target.value)}
             required
@@ -154,7 +148,6 @@ export default function ProjectForm({
         <Field label="Lokasi / Estate" name="location" errors={errors} required>
           <input
             type="text"
-            className="form-control"
             value={form.location}
             onChange={(e) => handleChange("location", e.target.value)}
             required
@@ -163,10 +156,9 @@ export default function ProjectForm({
       </div>
 
       <div className="grid-2">
-        <Field label="Tanggal Mulai" name="start_date" errors={errors}  required>
+        <Field label="Tanggal Mulai" name="start_date" errors={errors} required>
           <input
             type="date"
-            className="form-control"
             value={form.start_date}
             onChange={(e) => handleChange("start_date", e.target.value)}
             required
@@ -175,7 +167,6 @@ export default function ProjectForm({
         <Field label="Tanggal Selesai" name="end_date" errors={errors} required>
           <input
             type="date"
-            className="form-control"
             value={form.end_date}
             onChange={(e) => handleChange("end_date", e.target.value)}
             required
@@ -186,7 +177,6 @@ export default function ProjectForm({
 
       <Field label="Deskripsi" name="description" errors={errors}>
         <textarea
-          className="form-control"
           value={form.description}
           onChange={(e) => handleChange("description", e.target.value)}
           rows={3}
