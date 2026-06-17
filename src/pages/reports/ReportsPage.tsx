@@ -5,42 +5,37 @@ import { reportService } from "../../services/reportService";
 import { useAuth } from "../../context/AuthContext";
 import { formatDate, formatDateTime, extractError } from "../../utils/format";
 
+// NOTE: `value` MUST match backend enum: WEEKLY | MONTHLY | PROGRESS | COST | SUMMARY
 const REPORT_TYPES = [
   {
-    value: "WEEKLY_PROGRESS",
-    label: "Laporan Progress Mingguan",
+    value: "WEEKLY",
+    label: "Laporan Mingguan",
     icon: "📋",
     desc: "Ringkasan realisasi lapangan per minggu dengan perbandingan plan vs actual.",
   },
   {
-    value: "MONTHLY_SUMMARY",
-    label: "Ringkasan Bulanan",
+    value: "MONTHLY",
+    label: "Laporan Bulanan",
     icon: "📅",
     desc: "Rekap kumulatif bulanan: volume, biaya, dan deviasi.",
   },
   {
-    value: "COST_REPORT",
+    value: "PROGRESS",
+    label: "Laporan Progress",
+    icon: "📊",
+    desc: "Status progress pekerjaan per item WBD pada periode terpilih.",
+  },
+  {
+    value: "COST",
     label: "Laporan Biaya",
     icon: "💰",
     desc: "Analisis biaya rencana vs realisasi dengan breakdown per grup.",
   },
   {
-    value: "GANTT_SNAPSHOT",
-    label: "Snapshot Gantt",
-    icon: "📊",
-    desc: "Foto timeline pekerjaan pada titik waktu tertentu.",
-  },
-  {
-    value: "EXECUTIVE_SUMMARY",
-    label: "Executive Summary",
+    value: "SUMMARY",
+    label: "Ringkasan Eksekutif",
     icon: "🏢",
-    desc: "Ringkasan eksekutif untuk Direksi: KPI, status, dan risiko.",
-  },
-  {
-    value: "FULL_PROJECT",
-    label: "Laporan Proyek Lengkap",
-    icon: "📦",
-    desc: "Dokumen komprehensif seluruh aspek proyek (WBD, Gantt, Progress, Biaya).",
+    desc: "Ringkasan eksekutif untuk Direksi: KPI, status, dan risiko proyek.",
   },
 ];
 
@@ -55,7 +50,7 @@ export default function ReportsPage() {
   const { canGenerateReports } = useAuth() as any;
   const queryClient = useQueryClient();
 
-  const [reportType, setReportType] = useState("WEEKLY_PROGRESS");
+  const [reportType, setReportType] = useState("WEEKLY");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -68,12 +63,19 @@ export default function ReportsPage() {
   });
 
   const generateMut = useMutation({
-    mutationFn: () =>
-      reportService.generate(projectId!, {
+    mutationFn: () => {
+      // Backend requires period_start/period_end. Default to current month if blank.
+      const today = new Date();
+      const defStart = new Date(today.getFullYear(), today.getMonth(), 1)
+        .toISOString()
+        .slice(0, 10);
+      const defEnd = today.toISOString().slice(0, 10);
+      return reportService.generate(projectId!, {
         report_type: reportType,
-        date_from: dateFrom || "",
-        date_to: dateTo || "",
-      }),
+        period_start: dateFrom || defStart,
+        period_end: dateTo || defEnd,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reports", projectId] });
       setGenerating(false);

@@ -3,7 +3,6 @@ import type {
   ApiResponse,
   PaginatedResponse,
   ReportRecord,
-  ReportType,
 } from "../types";
 
 export const reportService = {
@@ -16,8 +15,9 @@ export const reportService = {
 
   generate: async (
     projectId: string,
-    // data: { report_type: ReportType; period_start: string; period_end: string }
-    data: { report_type: string; date_from: string; date_to: string }
+    // Backend contract: report_type ∈ {WEEKLY,MONTHLY,PROGRESS,COST,SUMMARY}
+    // with period_start / period_end (dates).
+    data: { report_type: string; period_start: string; period_end: string }
   ) => {
     const res = await api.post<ApiResponse<ReportRecord>>(
       `/projects/${projectId}/reports/generate`,
