@@ -358,18 +358,28 @@ function UploadForm({
   const [file,        setFile]        = useState<File | null>(null);
   const [category,    setCategory]    = useState('OTHER');
   const [description, setDescription] = useState('');
+  const [caption,     setCaption]     = useState('');
+  const [photoDate,   setPhotoDate]   = useState('');
   const [isLoading,   setIsLoading]   = useState(false);
   const [error,       setError]       = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) { setError('Pilih file terlebih dahulu.'); return; }
+    if (category === 'PHOTO') {
+      if (!caption.trim()) { setError('Caption wajib diisi untuk Foto Lapangan.'); return; }
+      if (!photoDate)       { setError('Tanggal foto wajib diisi untuk Foto Lapangan.'); return; }
+    }
     setError(''); setIsLoading(true);
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('category', category);
       if (description) formData.append('description', description);
+      if (category === 'PHOTO') {
+        formData.append('caption', caption);
+        formData.append('photo_date', photoDate);
+      }
       await fileService.upload(projectId, formData);
       onSuccess();
     } catch (err) { setError(extractError(err)); }
@@ -422,6 +432,32 @@ function UploadForm({
           {Object.entries(CATEGORY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
       </div>
+
+      {category === 'PHOTO' && (
+        <>
+          <div className="field">
+            <label>Caption *</label>
+            <input
+              type="text"
+              value={caption}
+              onChange={e => setCaption(e.target.value)}
+              placeholder="Keterangan foto lapangan..."
+              style={{ width: '100%' }}
+              required
+            />
+          </div>
+          <div className="field">
+            <label>Tanggal Foto *</label>
+            <input
+              type="date"
+              value={photoDate}
+              onChange={e => setPhotoDate(e.target.value)}
+              style={{ width: '100%' }}
+              required
+            />
+          </div>
+        </>
+      )}
 
       <div className="field">
         <label>Keterangan <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— opsional</span></label>
