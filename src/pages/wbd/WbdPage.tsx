@@ -52,8 +52,14 @@ export default function WbdPage() {
   const isDraft   = selectedVersion?.status === 'DRAFT';
   const isPending = selectedVersion?.status === 'PENDING_DIRECTOR_APPROVAL';
 
-  const nodes: any[] = (nodesQ.data as any)?.data ?? [];
-  const totalCost = nodes.filter((n: any) => n.node_type === 'GROUP').reduce((s: number, n: any) => s + (n.total_cost ?? 0), 0);
+  // API returns nodes as a nested tree (GROUP -> children: [ITEM...]).
+  // Flatten to the flat array that WbdTree / summary logic expect.
+  const flattenNodes = (list: any[]): any[] =>
+    (list ?? []).flatMap((n: any) => [n, ...flattenNodes(n.children ?? [])]);
+  const nodes: any[] = flattenNodes((nodesQ.data as any)?.data ?? []);
+  const totalCost = nodes
+    .filter((n: any) => n.node_type === 'GROUP' && n.parent_node_id === null)
+    .reduce((s: number, n: any) => s + Number(n.planned_cost ?? 0), 0);
   const itemCount = nodes.filter((n: any) => n.node_type === 'ITEM').length;
 
   return (
