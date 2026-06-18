@@ -297,14 +297,22 @@ def test_progress(tokens, state):
         record("Progress", "skipped (no project)", "-", "-", "-", "-", "-", False, "prereq missing")
         return
 
-    # need an ITEM node id from active baseline; fetch via active version nodes
+    # need an ITEM node id from active baseline; fetch via active version nodes.
+    # The API returns a NESTED tree (GROUP -> children: [ITEM...]), so recurse.
     node_id = None
+
+    def find_item(nodes):
+        for n in nodes:
+            if n.get("node_type") == "ITEM":
+                return n.get("id")
+            hit = find_item(n.get("children") or [])
+            if hit:
+                return hit
+        return None
+
     if pm and state.get("version_id"):
         r = req("GET", f"/wbd-versions/{state['version_id']}/nodes", token=pm)
-        for n in body(r).get("data", []):
-            if n.get("node_type") == "ITEM":
-                node_id = n.get("id")
-                break
+        node_id = find_item(body(r).get("data", []))
 
     # list (any role)
     if pm:
