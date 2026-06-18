@@ -1,5 +1,12 @@
 // ─── Auth ───────────────────────────────────────────────────────────────────
 
+export interface IRole {
+  value: string;
+  label: string;
+  cls: string;
+  desc: string;
+}
+
 export interface Role {
   id: string;
   name: string;
