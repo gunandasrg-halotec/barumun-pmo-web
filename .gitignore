@@ -7,3 +7,4 @@ dist-ssr/
 *.local
 .DS_Store
 .vscode/
+last_update.txt
