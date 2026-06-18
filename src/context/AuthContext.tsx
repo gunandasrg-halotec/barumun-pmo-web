@@ -24,6 +24,7 @@ interface AuthContextType {
   canManageFiles: () => boolean;
   canGenerateReport: () => boolean;
   canManageMasterData: () => boolean;
+  refreshMe: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -41,18 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
       return;
     }
-    authService
-      .me()
-      .then((res) => {
-        setUser(res);
-        localStorage.setItem("auth_user", JSON.stringify(res));
-      })
-      .catch(() => {
-        localStorage.removeItem("auth_token");
-        localStorage.removeItem("auth_user");
-        setUser(null);
-      })
-      .finally(() => setIsLoading(false));
+    refreshMe().finally(() => setIsLoading(false));
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -65,6 +55,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     await authService.logout();
     setUser(null);
+  };
+
+  const refreshMe = async () => {
+    return authService
+      .me()
+      .then((res) => {
+        setUser(res);
+        localStorage.setItem("auth_user", JSON.stringify(res));
+      })
+      .catch(() => {
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("auth_user");
+        setUser(null);
+      });
   };
 
   const hasRole = (role: string) => user?.role?.name === role;
@@ -107,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         canManageFiles,
         canGenerateReport,
         canManageMasterData,
+        refreshMe,
       }}
     >
       {children}
