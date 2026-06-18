@@ -159,38 +159,73 @@ def test_dashboard_and_sidebar(context):
     page.close()
 
 
+def sidebar_text(page, expect=None):
+    """Wait for the sidebar to hydrate (incl. role-gated items) and return text.
+
+    `expect` is a lowercased substring we poll for (the role-gated label).
+    We do NOT short-circuit on always-present text like 'Keluar'.
+    """
+    try:
+        page.wait_for_load_state("networkidle", timeout=8000)
+    except Exception:
+        pass
+    loc = None
+    for sel in ["aside", ".sidebar"]:
+        if page.locator(sel).count():
+            loc = page.locator(sel).first
+            break
+    if loc is None:
+        return page.content().lower()
+    try:
+        loc.wait_for(state="visible", timeout=8000)
+    except Exception:
+        pass
+    # Poll up to ~6s for the role-gated label to appear.
+    last = ""
+    for _ in range(20):
+        last = loc.inner_text().lower()
+        if expect is None or expect in last:
+            return last
+        page.wait_for_timeout(300)
+    return last
+
+
 def test_rbac_sidebar(context):
     print("\n=== E2E: RBAC SIDEBAR VISIBILITY ===")
+    # Use a FRESH context per role — a reused context carries stale SPA/auth
+    # state that prevents the role-gated sidebar items from rendering.
+    browser = context.browser
+
+    def fresh_login(email):
+        ctx = browser.new_context(viewport={"width": 1440, "height": 900},
+                                  ignore_https_errors=True)
+        pg = ctx.new_page()
+        do_login(pg, email, PASSWORD)
+        return ctx, pg
+
     # Admin sees User Settings
-    page = context.new_page()
-    do_login(page, ACCOUNTS["ADMINSYS"], PASSWORD)
-    page.wait_for_timeout(1500)
-    admin_txt = page.content().lower()
+    ctx, page = fresh_login(ACCOUNTS["ADMINSYS"])
+    admin_txt = sidebar_text(page, expect="user settings")
     record("RBAC", "admin sees 'User Settings'", "ADMINSYS",
            "visible", "yes" if "user settings" in admin_txt or "pengaturan" in admin_txt else "no",
            ("user settings" in admin_txt or "pengaturan" in admin_txt), page)
-    page.close()
-    logout_clear(context)
+    ctx.close()
 
-    # PM does NOT see User Settings
-    page = context.new_page()
-    do_login(page, ACCOUNTS["PM"], PASSWORD)
-    page.wait_for_timeout(1500)
-    pm_txt = page.content().lower()
+    # PM does NOT see User Settings (poll Dashboard so sidebar is hydrated first)
+    ctx, page = fresh_login(ACCOUNTS["PM"])
+    pm_txt = sidebar_text(page, expect="dashboard")
     record("RBAC", "PM does NOT see 'User Settings'", "PM",
            "hidden", "hidden" if "user settings" not in pm_txt else "VISIBLE",
            "user settings" not in pm_txt, page)
-    page.close()
-    logout_clear(context)
+    ctx.close()
 
     # Direksi sees Persetujuan WBD
-    page = context.new_page()
-    do_login(page, ACCOUNTS["DIREKSI"], PASSWORD)
-    page.wait_for_timeout(1500)
-    dir_txt = page.content().lower()
+    ctx, page = fresh_login(ACCOUNTS["DIREKSI"])
+    dir_txt = sidebar_text(page, expect="persetujuan")
     record("RBAC", "Direksi sees 'Persetujuan WBD'", "DIREKSI",
            "visible", "yes" if "persetujuan" in dir_txt else "no",
            "persetujuan" in dir_txt, page)
+    ctx.close()
     page.close()
 
 
