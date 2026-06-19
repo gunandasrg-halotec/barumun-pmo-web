@@ -44,11 +44,17 @@ export const fileService = {
   },
 
   listFiles: async (projectId: string, filters: FileFilters = {}) => {
+    const { page, limit, search, ...filterFields } = filters;
+    const params: Record<string, any> = {};
+    if (page)   params['page']       = page;
+    if (limit)  params['per-page']   = limit;
+    if (search) params['search']     = search;
+    Object.entries(filterFields).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') params[`filter[${k}]`] = v;
+    });
     const res = await api.get<PaginatedResponse<ProjectFile>>(
       `/projects/${projectId}/files`,
-      {
-        params: filters,
-      }
+      { params }
     );
     return res.data;
   },

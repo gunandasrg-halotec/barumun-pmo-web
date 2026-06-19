@@ -7,6 +7,7 @@ import InputPassword from "@/components/ui/InputPassword";
 import ProfilePage from "./ProfilePage";
 import { IRole } from "@/types";
 import { authService } from "@/services/authService";
+import { fileService } from "@/services/fileService";
 
 const ROLES: IRole[] = [
   {
@@ -41,7 +42,7 @@ const ROLES: IRole[] = [
   },
 ];
 
-const TABS = ["Manajemen User", "Profil Saya", "Akses & Role"];
+const TABS = ["Manajemen User", "Profil Saya", "Akses & Role", "Kategori Dokumen"];
 
 export default function AdminPage() {
   const { user: currentUser, isAdminSistem, refreshMe } = useAuth();
@@ -510,6 +511,11 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* Tab: Kategori Dokumen */}
+      {activeTab === "Kategori Dokumen" && (
+        <FileCategoryTab isAdmin={isAdminSistem()} />
+      )}
+
       {/* Create User Modal */}
       {showCreate && (
         <div
@@ -575,6 +581,159 @@ export default function AdminPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function FileCategoryTab({ isAdmin }: { isAdmin: boolean }) {
+  const queryClient = useQueryClient();
+  const [showCreate, setShowCreate] = useState(false);
+  const [editCat,   setEditCat]    = useState<any>(null);
+
+  const catsQ = useQuery({
+    queryKey: ['file-categories-all'],
+    queryFn: () => fileService.listCategories(false),
+  });
+  const cats: any[] = (catsQ.data as any)?.data ?? [];
+
+  const createMut = useMutation({
+    mutationFn: (d: { category_name: string; description?: string }) => fileService.createCategory(d),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['file-categories-all'] }); queryClient.invalidateQueries({ queryKey: ['file-categories'] }); setShowCreate(false); },
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, ...d }: any) => fileService.updateCategory(id, d),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['file-categories-all'] }); queryClient.invalidateQueries({ queryKey: ['file-categories'] }); setEditCat(null); },
+  });
+
+  return (
+    <div className="section-card glass">
+      <div className="section-title" style={{ marginBottom: 14 }}>
+        <div>
+          <h4 style={{ margin: 0 }}>Kategori Dokumen</h4>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Kelola kategori untuk dokumen yang dapat diunggah dalam proyek.</p>
+        </div>
+        {isAdmin && (
+          <button className="btn" onClick={() => setShowCreate(true)}>+ Tambah Kategori</button>
+        )}
+      </div>
+
+      {catsQ.isLoading ? (
+        <div className="loading-state">Memuat kategori...</div>
+      ) : catsQ.error ? (
+        <div className="danger-box">{extractError(catsQ.error)}</div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nama Kategori</th>
+                <th>Deskripsi</th>
+                <th>Status</th>
+                {isAdmin && <th>Aksi</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {cats.map((c: any) => (
+                <tr key={c.id}>
+                  <td style={{ fontWeight: 600, fontSize: 13 }}>{c.category_name}</td>
+                  <td style={{ fontSize: 12, color: 'var(--muted)' }}>{c.description ?? '—'}</td>
+                  <td>
+                    <span className={`badge ${c.is_active ? 'done' : 'delay'}`}>
+                      {c.is_active ? 'Aktif' : 'Nonaktif'}
+                    </span>
+                  </td>
+                  {isAdmin && (
+                    <td>
+                      <div className="cluster">
+                        <button className="chip clickable" onClick={() => setEditCat(c)}>Edit</button>
+                        <button
+                          className="chip clickable"
+                          style={{ color: c.is_active ? 'var(--danger)' : 'var(--ok)' }}
+                          onClick={() => updateMut.mutate({ id: c.id, is_active: !c.is_active })}
+                        >
+                          {c.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Create Category Modal */}
+      {showCreate && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowCreate(false); }}>
+          <div className="modal-window" style={{ maxWidth: 480 }}>
+            <div className="modal-head">
+              <div><h4>Tambah Kategori Dokumen</h4><p>Buat kategori baru untuk pengelompokan dokumen proyek.</p></div>
+              <button className="modal-close" onClick={() => setShowCreate(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <CategoryForm
+                onSuccess={d => createMut.mutate(d)}
+                onCancel={() => setShowCreate(false)}
+                isPending={createMut.isPending}
+                error={createMut.error ? extractError(createMut.error) : ''}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Category Modal */}
+      {editCat && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setEditCat(null); }}>
+          <div className="modal-window" style={{ maxWidth: 480 }}>
+            <div className="modal-head">
+              <div><h4>Edit Kategori</h4><p>Ubah nama atau deskripsi kategori {editCat.category_name}.</p></div>
+              <button className="modal-close" onClick={() => setEditCat(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <CategoryForm
+                initial={editCat}
+                onSuccess={d => updateMut.mutate({ id: editCat.id, ...d })}
+                onCancel={() => setEditCat(null)}
+                isPending={updateMut.isPending}
+                error={updateMut.error ? extractError(updateMut.error) : ''}
+                isEdit
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CategoryForm({
+  initial, onSuccess, onCancel, isPending, error, isEdit = false,
+}: { initial?: any; onSuccess: (d: any) => void; onCancel: () => void; isPending: boolean; error: string; isEdit?: boolean }) {
+  const [form, setForm] = useState({ category_name: initial?.category_name ?? '', description: initial?.description ?? '' });
+
+  return (
+    <form onSubmit={e => { e.preventDefault(); onSuccess(form); }}>
+      {error && <div className="danger-box" style={{ marginBottom: 12 }}>{error}</div>}
+      <div className="field">
+        <label className="required">Nama Kategori</label>
+        <input value={form.category_name} onChange={e => setForm(p => ({ ...p, category_name: e.target.value }))} required />
+      </div>
+      <div className="field">
+        <label>Deskripsi <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— opsional</span></label>
+        <textarea rows={2} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} style={{ width: '100%' }} />
+      </div>
+      <div className="modal-foot" style={{ padding: 0, marginTop: 4 }}>
+        <div />
+        <div className="cluster">
+          <button type="button" className="btn secondary" onClick={onCancel} disabled={isPending}>Batal</button>
+          <button type="submit" className="btn" disabled={isPending || !form.category_name}>
+            {isPending ? 'Menyimpan...' : isEdit ? 'Simpan Perubahan' : 'Tambah Kategori'}
+          </button>
+        </div>
+      </div>
+    </form>
   );
 }
 
