@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { analyticsService } from '../../services/analyticsService';
@@ -7,7 +8,6 @@ import type { GanttNode } from '../../types';
 const GROUP_CLASSES = ['group-a', 'group-b', 'group-c', 'group-d', 'group-e', 'group-f'];
 const GROUP_COLORS  = ['#2d7d46', '#cf9f3c', '#6cb0a7', '#d8824d', '#c08257', '#7b8b97'];
 
-// Jun-Dec 2026 = 28 weeks
 const MONTHS = ['Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const MONTH_START_MS = new Date('2026-06-01T00:00:00').getTime();
 const MONTH_END_MS   = new Date('2026-12-31T23:59:59').getTime();
@@ -32,7 +32,25 @@ export default function GanttPage() {
   });
 
   const allNodes: GanttNode[] = (data as any)?.data ?? [];
-  const rootNodes = allNodes.filter(n => n.parent_node_id === null).sort((a, b) => a.sort_order - b.sort_order);
+
+  const groupIds = useMemo(
+    () => new Set(allNodes.filter(n => n.node_type === 'GROUP').map(n => n.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allNodes.length]
+  );
+
+  // Default: semua GROUP di-collapse. Reinitialize ketika data pertama kali tiba.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [initialized, setInitialized] = useState(false);
+
+  if (!initialized && groupIds.size > 0) {
+    setCollapsed(new Set(groupIds));
+    setInitialized(true);
+  }
+
+  const rootNodes = allNodes
+    .filter(n => n.parent_node_id === null)
+    .sort((a, b) => a.sort_order - b.sort_order);
 
   const todayPct = ((Date.now() - MONTH_START_MS) / TOTAL_MS) * 100;
 
@@ -40,9 +58,45 @@ export default function GanttPage() {
   const delayed = allNodes.filter(n => n.node_type === 'ITEM' && n.progress_percent < 40 && n.start_date && new Date(n.start_date) < new Date()).length;
   const done    = allNodes.filter(n => n.node_type === 'ITEM' && n.progress_percent >= 100).length;
 
-  function flatRows(node: GanttNode, groupIdx: number, depth = 0): { node: GanttNode; groupIdx: number; depth: number }[] {
-    const children = allNodes.filter(n => n.parent_node_id === node.id).sort((a, b) => a.sort_order - b.sort_order);
-    return [{ node, groupIdx, depth }, ...children.flatMap(c => flatRows(c, groupIdx, depth + 1))];
+  function toggleCollapse(nodeId: string) {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+  }
+
+  function expandAll() {
+    setCollapsed(new Set());
+  }
+
+  function collapseAll() {
+    setCollapsed(new Set(groupIds));
+  }
+
+  // Count all descendants of a node
+  function countDescendants(nodeId: string): number {
+    const children = allNodes.filter(n => n.parent_node_id === nodeId);
+    return children.reduce((sum, c) => sum + 1 + countDescendants(c.id), 0);
+  }
+
+  // Build flat rows — skip children of collapsed nodes (recursive)
+  function flatRows(
+    node: GanttNode,
+    groupIdx: number,
+    depth = 0
+  ): { node: GanttNode; groupIdx: number; depth: number; isCollapsed: boolean }[] {
+    const isCollapsed = collapsed.has(node.id);
+    const children = isCollapsed
+      ? []
+      : allNodes
+          .filter(n => n.parent_node_id === node.id)
+          .sort((a, b) => a.sort_order - b.sort_order);
+    return [
+      { node, groupIdx, depth, isCollapsed },
+      ...children.flatMap(c => flatRows(c, groupIdx, depth + 1)),
+    ];
   }
 
   const rows = rootNodes.flatMap((n, i) => flatRows(n, i, 0));
@@ -72,8 +126,12 @@ export default function GanttPage() {
           <select><option>Semua Grup</option>{rootNodes.map(n => <option key={n.id}>{n.name}</option>)}</select>
           <select><option>Semua Status</option><option>On Track</option><option>Delay</option><option>Selesai</option></select>
           <select><option>Mingguan</option><option>Bulanan</option></select>
-          <button className="btn secondary">Tampilkan Baseline vs Actual</button>
+          <button className="btn secondary" onClick={expandAll}>▼ Expand All</button>
+          <button className="btn secondary" onClick={collapseAll}>▶ Collapse All</button>
           <div className="stretch" />
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+            {rows.length} / {allNodes.length} baris
+          </span>
         </div>
 
         {allNodes.length === 0 ? (
@@ -89,27 +147,51 @@ export default function GanttPage() {
                 <strong>Bobot</strong>
                 <strong>Status</strong>
               </div>
-              {rows.map(({ node, groupIdx, depth }) => {
-                const isGroup = node.node_type === 'GROUP';
-                const pctVal  = node.progress_percent ?? 0;
+              {rows.map(({ node, groupIdx, depth, isCollapsed }) => {
+                const isGroup  = node.node_type === 'GROUP';
+                const pctVal   = node.progress_percent ?? 0;
                 const statusCls = pctVal >= 100 ? 'done' : pctVal > 0 ? 'running' : 'planned';
                 const statusLbl = pctVal >= 100 ? 'Done' : pctVal > 0 ? `${pctVal.toFixed(0)}%` : 'Plan';
+                const hiddenCount = isGroup && isCollapsed ? countDescendants(node.id) : 0;
+
                 return (
                   <div key={node.id} className="task-row">
                     <div className="task-title">
-                      <strong style={{ paddingLeft: depth * 14, color: isGroup ? 'var(--green-800)' : undefined }}>
+                      <strong style={{
+                        paddingLeft: depth * 14,
+                        color: isGroup ? 'var(--green-800)' : undefined,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}>
+                        {isGroup && (
+                          <button
+                            onClick={() => toggleCollapse(node.id)}
+                            className="gantt-toggle"
+                            title={isCollapsed ? 'Expand' : 'Collapse'}
+                          >
+                            {isCollapsed ? '▶' : '▼'}
+                          </button>
+                        )}
                         {isGroup ? `${String.fromCharCode(65 + groupIdx)}. ` : ''}{node.name}
+                        {isGroup && isCollapsed && hiddenCount > 0 && (
+                          <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400, marginLeft: 4 }}>
+                            ({hiddenCount} item)
+                          </span>
+                        )}
                       </strong>
                       {!isGroup && node.start_date && (
-                        <span>{node.start_date} – {node.end_date ?? '—'}</span>
+                        <span style={{ paddingLeft: depth * 14 }}>{node.start_date} – {node.end_date ?? '—'}</span>
                       )}
-                      {isGroup && <span>Header grup</span>}
+                      {isGroup && !isCollapsed && <span>Header grup</span>}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                       {node.weight_percent != null ? `${Number(node.weight_percent).toFixed(2)}%` : '—'}
                     </div>
                     <div>
-                      <span className={`badge ${statusCls}`}>{isGroup ? 'Live' : statusLbl}</span>
+                      <span className={`badge ${isGroup ? (isCollapsed ? 'planned' : 'running') : statusCls}`}>
+                        {isGroup ? (isCollapsed ? 'Tutup' : 'Live') : statusLbl}
+                      </span>
                     </div>
                   </div>
                 );
@@ -128,7 +210,6 @@ export default function GanttPage() {
               </div>
 
               <div className="timeline-body">
-                {/* Today line */}
                 <div className="today-line" style={{ left: `${Math.min(98, Math.max(2, todayPct))}%` }} />
 
                 {rows.map(({ node, groupIdx }) => {
@@ -145,7 +226,13 @@ export default function GanttPage() {
                           style={{ left: `${barLeft}%`, width: `${barWidth}%`, top: 18 }}
                         >
                           <div className="fill" style={{ width: `${Math.min(100, fillPct)}%` }} />
-                          <span>{fillPct >= 100 ? 'Done' : fillPct > 0 ? `${fillPct.toFixed(0)}%` : node.node_type === 'GROUP' ? `Grup ${String.fromCharCode(65 + groupIdx)}` : 'Plan'}</span>
+                          <span>
+                            {fillPct >= 100 ? 'Done' : fillPct > 0
+                              ? `${fillPct.toFixed(0)}%`
+                              : node.node_type === 'GROUP'
+                                ? `Grup ${String.fromCharCode(65 + groupIdx)}`
+                                : 'Plan'}
+                          </span>
                         </div>
                       )}
                     </div>
