@@ -26,7 +26,7 @@ export const progressService = {
 
   create: async (
     projectId: string,
-    data: { wbd_node_id: string; progress_date: string; progress_volume: number; note?: string }
+    data: { wbd_node_id: string; progress_date: string; progress_volume: number; actual_cost?: number; note?: string }
   ) => {
     const res = await api.post<ApiResponse<ProgressEntry>>(
       `/projects/${projectId}/progress-entries`,

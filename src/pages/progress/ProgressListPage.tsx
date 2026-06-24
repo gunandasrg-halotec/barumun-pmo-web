@@ -436,6 +436,7 @@ function ProgressCreateForm({
         wbd_node_id:     form.wbd_node_id,
         progress_date:   form.progress_date,
         progress_volume: parseFloat(form.progress_volume),
+        actual_cost:     form.actual_cost ? parseFloat(form.actual_cost) : undefined,
         note:            form.note || undefined,
       });
       onSuccess();
