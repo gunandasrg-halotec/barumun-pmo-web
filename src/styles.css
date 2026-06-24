@@ -959,10 +959,12 @@ tbody tr:hover {
   grid-template-columns: 1fr 72px 74px;
   gap: 12px;
   align-items: center;
-  padding: 13px 16px;
+  padding: 8px 16px;
   font-size: 13px;
 }
 .task-row {
+  height: 56px;
+  overflow: hidden;
   border-bottom: 1px solid rgba(42, 69, 53, 0.08);
 }
 .task-title {
@@ -1019,7 +1021,7 @@ tbody tr:hover {
 }
 .timeline-grid-row {
   position: relative;
-  min-height: 56px;
+  height: 56px;
   border-bottom: 1px solid rgba(42, 69, 53, 0.08);
   align-items: center;
   padding: 0 8px;
