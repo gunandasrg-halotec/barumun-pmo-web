@@ -419,6 +419,7 @@ function ProgressCreateForm({
 }: { projectId: string; itemNodes: { id: string; label: string; unit: string }[]; onSuccess: () => void; onCancel: () => void }) {
   const [form, setForm]       = useState({ wbd_node_id: '', progress_date: '', progress_volume: '', actual_cost: '', note: '' });
   const [preview, setPreview] = useState<{ label: string; unit: string } | null>(null);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError]     = useState('');
 
@@ -432,13 +433,14 @@ function ProgressCreateForm({
     e.preventDefault();
     setError(''); setIsLoading(true);
     try {
-      await progressService.create(projectId, {
-        wbd_node_id:     form.wbd_node_id,
-        progress_date:   form.progress_date,
-        progress_volume: parseFloat(form.progress_volume),
-        actual_cost:     form.actual_cost ? parseFloat(form.actual_cost) : undefined,
-        note:            form.note || undefined,
-      });
+      const formData = new FormData();
+      formData.append('wbd_node_id', form.wbd_node_id);
+      formData.append('progress_date', form.progress_date);
+      formData.append('progress_volume', form.progress_volume);
+      if (form.actual_cost) formData.append('actual_cost', form.actual_cost);
+      if (form.note) formData.append('note', form.note);
+      if (attachedFile) formData.append('attachment', attachedFile);
+      await progressService.create(projectId, formData);
       onSuccess();
     } catch (err) { setError(extractError(err)); }
     finally { setIsLoading(false); }
@@ -490,10 +492,44 @@ function ProgressCreateForm({
         />
       </div>
 
-      <div className="panel-block" style={{ marginBottom: 14, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
-        <div style={{ fontSize: 22, marginBottom: 4 }}>📎</div>
-        Upload Foto / Bukti Lapangan
-        <div style={{ fontSize: 11, marginTop: 2 }}>(Fitur upload dokumen tersedia di halaman Documents)</div>
+      <div
+        onClick={() => document.getElementById('progress-file-input')?.click()}
+        style={{
+          marginBottom: 14,
+          padding: '20px 16px',
+          textAlign: 'center',
+          color: 'var(--muted)',
+          fontSize: 12,
+          border: '2px dashed var(--line)',
+          borderRadius: 12,
+          cursor: 'pointer',
+          background: attachedFile ? 'rgba(45,125,70,0.05)' : 'transparent',
+          transition: 'background 0.2s',
+        }}
+      >
+        <input
+          id="progress-file-input"
+          type="file"
+          style={{ display: 'none' }}
+          onChange={e => setAttachedFile(e.target.files?.[0] ?? null)}
+          accept="image/*,.pdf,.doc,.docx"
+        />
+        <div style={{ fontSize: 22, marginBottom: 8 }}>📎</div>
+        {attachedFile ? (
+          <>
+            <div style={{ fontWeight: 600, color: 'var(--text)' }}>{attachedFile.name}</div>
+            <div style={{ fontSize: 11, marginTop: 4, color: 'var(--muted)' }}>
+              ({(attachedFile.size / 1024).toFixed(1)} KB) · Klik untuk ganti
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
+              Klik untuk upload Foto / Bukti Lapangan
+            </div>
+            <div style={{ fontSize: 11 }}>JPG, PNG, PDF, DOC, DOCX — maks. 10 MB</div>
+          </>
+        )}
       </div>
 
       <div className="modal-foot" style={{ padding: 0, marginTop: 4 }}>
