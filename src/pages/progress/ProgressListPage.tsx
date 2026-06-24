@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
+import api from '../../services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { progressService } from '../../services/progressService';
 import { wbdService } from '../../services/wbdService';
@@ -185,6 +186,7 @@ export default function ProgressListPage() {
                     <th>Biaya Rencana</th>
                     <th>Biaya Realisasi</th>
                     <th>Sisa Biaya</th>
+                    <th>Lampiran</th>
                     <th>Update Terakhir</th>
                     <th>Status</th>
                     <th>Aksi</th>
@@ -240,6 +242,28 @@ export default function ProgressListPage() {
                         </td>
                         <td style={{ fontSize: 12, color: isOver ? 'var(--danger)' : 'inherit' }}>
                           {isOver ? `+${formatCurrency(Math.abs(costSisa))}` : formatCurrency(costSisa)}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          {entry.attachment_path ? (
+                            <button
+                              className="chip clickable"
+                              style={{ fontSize: 16, padding: '2px 6px' }}
+                              title="Lihat lampiran"
+                              onClick={async () => {
+                                try {
+                                  const res = await api.get(`/progress-entries/${entry.id}/attachment`, { responseType: 'blob' });
+                                  const url = URL.createObjectURL(res.data);
+                                  window.open(url, '_blank');
+                                } catch {
+                                  alert('Gagal membuka lampiran.');
+                                }
+                              }}
+                            >
+                              📎
+                            </button>
+                          ) : (
+                            <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
+                          )}
                         </td>
                         <td style={{ fontSize: 11, color: 'var(--muted)' }}>
                           <div>{formatDate(entry.progress_date)}</div>

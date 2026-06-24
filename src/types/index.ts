@@ -141,6 +141,8 @@ export interface ProgressEntry {
   rejected_by: { id: string; full_name: string } | null;
   rejected_at: string | null;
   rejection_reason: string | null;
+  attachment_path?: string | null;
+  actual_cost?: number;
   created_at: string;
   actual_costs?: ActualCostSummary[];
 }
