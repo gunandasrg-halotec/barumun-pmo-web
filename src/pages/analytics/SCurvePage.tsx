@@ -10,7 +10,8 @@ function SCurveChart({
   actualKey,
   labelPlan,
   labelActual,
-  color,
+  planColor,
+  actualColor,
   formatVal,
 }: {
   data: any[];
@@ -18,7 +19,8 @@ function SCurveChart({
   actualKey: string;
   labelPlan: string;
   labelActual: string;
-  color: string;
+  planColor: string;
+  actualColor: string;
   formatVal: (v: number) => string;
 }) {
   const W = 640; const H = 220; const PL = 56; const PR = 16; const PT = 16; const PB = 32;
@@ -66,22 +68,22 @@ function SCurveChart({
       })}
 
       {/* Plan curve */}
-      <polyline points={planPts} fill="none" stroke={color} strokeWidth={2} strokeDasharray="5 3" opacity={0.7} />
+      <polyline points={planPts} fill="none" stroke={planColor} strokeWidth={2} strokeDasharray="5 3" opacity={0.85} />
 
       {/* Actual curve */}
-      <polyline points={actualPts} fill="none" stroke={color} strokeWidth={2.5} />
+      <polyline points={actualPts} fill="none" stroke={actualColor} strokeWidth={2.5} />
 
       {/* Dots for actual */}
       {allActual.map((v, i) => v > 0 && (
-        <circle key={i} cx={xOf(i)} cy={yOf(v)} r={3} fill={color} />
+        <circle key={i} cx={xOf(i)} cy={yOf(v)} r={3} fill={actualColor} />
       ))}
 
       {/* Legend */}
       <g transform={`translate(${PL},${PT - 2})`}>
-        <line x1={0} y1={0} x2={20} y2={0} stroke={color} strokeWidth={2} strokeDasharray="5 3" opacity={0.7} />
+        <line x1={0} y1={0} x2={20} y2={0} stroke={planColor} strokeWidth={2} strokeDasharray="5 3" opacity={0.85} />
         <text x={24} y={4} fontSize={10} fill="var(--muted)">{labelPlan}</text>
-        <line x1={80} y1={0} x2={100} y2={0} stroke={color} strokeWidth={2.5} />
-        <circle cx={90} cy={0} r={3} fill={color} />
+        <line x1={80} y1={0} x2={100} y2={0} stroke={actualColor} strokeWidth={2.5} />
+        <circle cx={90} cy={0} r={3} fill={actualColor} />
         <text x={104} y={4} fontSize={10} fill="var(--muted)">{labelActual}</text>
       </g>
     </svg>
@@ -169,7 +171,8 @@ export default function SCurvePage() {
             actualKey="actual_cumulative"
             labelPlan="Rencana"
             labelActual="Realisasi"
-            color="var(--green-700)"
+            planColor="#2563EB"
+            actualColor="#16A34A"
             formatVal={v => `${v.toFixed(0)}%`}
           />
           <div style={{ display: 'flex', gap: 16, marginTop: 12, fontSize: 12 }}>
@@ -198,7 +201,8 @@ export default function SCurvePage() {
             actualKey="actual_cumulative"
             labelPlan="Rencana"
             labelActual="Realisasi"
-            color="var(--soil)"
+            planColor="#2563EB"
+            actualColor="#EA580C"
             formatVal={v => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(0)}jt` : `${(v / 1_000).toFixed(0)}rb`}
           />
           <div style={{ display: 'flex', gap: 16, marginTop: 12, fontSize: 12 }}>
