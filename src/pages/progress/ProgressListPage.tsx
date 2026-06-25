@@ -253,9 +253,27 @@ export default function ProgressListPage() {
                                 try {
                                   const res = await api.get(`/progress-entries/${entry.id}/attachment`, { responseType: 'blob' });
                                   const url = URL.createObjectURL(res.data);
-                                  window.open(url, '_blank');
-                                } catch {
-                                  alert('Gagal membuka lampiran.');
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.target = '_blank';
+                                  a.rel = 'noopener noreferrer';
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
+                                  setTimeout(() => URL.revokeObjectURL(url), 10000);
+                                } catch (err: any) {
+                                  let detail = '';
+                                  try {
+                                    const blob: Blob = err?.response?.data;
+                                    if (blob instanceof Blob) {
+                                      const text = await blob.text();
+                                      const json = JSON.parse(text);
+                                      detail = json?.message ?? text;
+                                    }
+                                  } catch { /* ignore */ }
+                                  const status = err?.response?.status ?? 'network error';
+                                  console.error('[attachment] error', status, detail);
+                                  alert(`Gagal membuka lampiran. (${status}${detail ? ': ' + detail : ''})`);
                                 }
                               }}
                             >
