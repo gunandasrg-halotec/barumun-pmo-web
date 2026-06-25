@@ -10,17 +10,22 @@ import WbdNodeForm from './WbdNodeForm';
 import { formatCurrency, extractError } from '../../utils/format';
 import type { WbdNode, WbdVersion } from '../../types';
 
+const MAX_SUBMISSIONS = 3;
+
 export default function WbdPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const { canManageWbd, canApproveWbd } = useAuth();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab]           = useState<'tree' | 'versions'>('tree');
+  const [activeTab, setActiveTab]             = useState<'tree' | 'versions'>('tree');
   const [selectedVersion, setSelectedVersion] = useState<WbdVersion | null>(null);
-  const [showAddNode, setShowAddNode]       = useState(false);
-  const [parentNode, setParentNode]         = useState<WbdNode | null>(null);
-  const [rejectModal, setRejectModal]       = useState<string | null>(null);
-  const [rejectReason, setRejectReason]     = useState('');
+  const [showAddNode, setShowAddNode]         = useState(false);
+  const [parentNode, setParentNode]           = useState<WbdNode | null>(null);
+  const [rejectModal, setRejectModal]         = useState<string | null>(null);
+  const [rejectReason, setRejectReason]       = useState('');
+  const [showNewVersionModal, setShowNewVersionModal] = useState(false);
+  const [copyFromVersionId, setCopyFromVersionId]     = useState<string>('');
+  const [showSubmitWarning, setShowSubmitWarning]     = useState(false);
 
   const projectQ  = useQuery({ queryKey: ['project', projectId],        queryFn: () => projectService.get(projectId!) });
   const versionsQ = useQuery({ queryKey: ['wbd-versions', projectId],   queryFn: () => wbdService.listVersions(projectId!), enabled: !!projectId });
@@ -52,6 +57,14 @@ export default function WbdPage() {
   const isDraft   = selectedVersion?.status === 'DRAFT';
   const isPending = selectedVersion?.status === 'PENDING_DIRECTOR_APPROVAL';
 
+  // Hitung total submission: versi yang pernah disubmit (bukan DRAFT)
+  const totalSubmissions = versions.filter(v =>
+    ['PENDING_DIRECTOR_APPROVAL', 'FINAL_APPROVED', 'REJECTED', 'SUPERSEDED'].includes(v.status)
+  ).length;
+  const submissionsLeft = MAX_SUBMISSIONS - totalSubmissions;
+  const isLastChance    = submissionsLeft === 1;
+  const isBlocked       = submissionsLeft <= 0;
+
   // API returns nodes as a nested tree (GROUP -> children: [ITEM...]).
   // Flatten to the flat array that WbdTree / summary logic expect.
   const flattenNodes = (list: any[]): any[] =>
@@ -61,6 +74,15 @@ export default function WbdPage() {
     .filter((n: any) => n.node_type === 'GROUP' && n.parent_node_id === null)
     .reduce((s: number, n: any) => s + Number(n.planned_cost ?? 0), 0);
   const itemCount = nodes.filter((n: any) => n.node_type === 'ITEM').length;
+
+  function handleSubmitClick() {
+    if (!selectedVersion || isBlocked) return;
+    if (isLastChance) {
+      setShowSubmitWarning(true);
+    } else {
+      submitMut.mutate(selectedVersion.id);
+    }
+  }
 
   return (
     <div>
@@ -73,7 +95,11 @@ export default function WbdPage() {
           <div className="cluster">
             <span className="chip status-ok">Auto hitung aktif</span>
             {canManageWbd() && (
-              <button className="btn" onClick={() => createVersionMut.mutate(activeVersion?.id)} disabled={createVersionMut.isPending}>
+              <button
+                className="btn"
+                onClick={() => { setCopyFromVersionId(''); setShowNewVersionModal(true); }}
+                disabled={createVersionMut.isPending}
+              >
                 + Draft Versi Baru
               </button>
             )}
@@ -86,6 +112,14 @@ export default function WbdPage() {
           <div className="summary-item"><span>Total Item</span><strong>{itemCount}</strong></div>
           <div className="summary-item"><span>Versi WBD</span><strong>{versions.length}</strong></div>
           <div className="summary-item"><span>Status</span><strong>{selectedVersion ? <span className={`badge ${isDraft ? 'planned' : isPending ? 'delay' : 'done'}`}>{selectedVersion.status}</span> : '—'}</strong></div>
+          {canManageWbd() && versions.length > 0 && (
+            <div className="summary-item">
+              <span>Sisa Pengajuan</span>
+              <strong style={{ color: isBlocked ? 'var(--danger)' : isLastChance ? 'var(--warn, #d97706)' : 'inherit' }}>
+                {isBlocked ? 'Habis' : `${submissionsLeft}x`}
+              </strong>
+            </div>
+          )}
         </div>
 
         {/* Tab switcher */}
@@ -103,7 +137,19 @@ export default function WbdPage() {
           {canManageWbd() && isDraft && selectedVersion && (
             <>
               <button className="btn secondary" onClick={() => { setParentNode(null); setShowAddNode(true); }}>+ Tambah Item</button>
-              <button className="btn" onClick={() => submitMut.mutate(selectedVersion.id)} disabled={submitMut.isPending}>Ajukan ke Direksi</button>
+              {isBlocked ? (
+                <button className="btn" disabled title={`Batas maksimal ${MAX_SUBMISSIONS}x pengajuan telah tercapai.`}>
+                  ✕ Pengajuan Ditutup
+                </button>
+              ) : (
+                <button
+                  className={`btn${isLastChance ? ' danger' : ''}`}
+                  onClick={handleSubmitClick}
+                  disabled={submitMut.isPending}
+                >
+                  {isLastChance ? '⚠ Ajukan ke Direksi (Terakhir)' : 'Ajukan ke Direksi'}
+                </button>
+              )}
             </>
           )}
           {canApproveWbd() && isPending && selectedVersion && (
@@ -145,9 +191,111 @@ export default function WbdPage() {
           Pilih versi WBD atau buat versi baru untuk mulai.
           {canManageWbd() && (
             <div style={{ marginTop: 12 }}>
-              <button className="btn" onClick={() => createVersionMut.mutate(undefined)}>+ Buat WBD Pertama</button>
+              <button className="btn" onClick={() => { setCopyFromVersionId(''); setShowNewVersionModal(true); }}>+ Buat WBD Pertama</button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Modal Buat Draft Versi Baru */}
+      {showNewVersionModal && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowNewVersionModal(false); }}>
+          <div className="modal-window" style={{ maxWidth: 520 }}>
+            <div className="modal-head">
+              <div>
+                <h4>Buat Draft Versi Baru</h4>
+                <p>Pilih apakah ingin mulai dari kosong atau menyalin dari versi yang sudah ada.</p>
+              </div>
+              <button className="modal-close" onClick={() => setShowNewVersionModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="field">
+                <label>Salin struktur WBD dari versi lain <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(opsional)</span></label>
+                <select
+                  value={copyFromVersionId}
+                  onChange={e => setCopyFromVersionId(e.target.value)}
+                  style={{ width: '100%' }}
+                >
+                  <option value="">— Mulai dari kosong —</option>
+                  {versions.map(v => (
+                    <option key={v.id} value={v.id}>
+                      Version {v.version_number} — {v.status}{v.is_active ? ' ✓ Aktif' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {copyFromVersionId && (
+                <div className="info-box" style={{ marginTop: 12 }}>
+                  Seluruh struktur WBD dari versi yang dipilih akan disalin ke draft baru.
+                  Anda dapat mengedit setelah draft dibuat.
+                </div>
+              )}
+            </div>
+            <div className="modal-foot">
+              <div />
+              <div className="cluster">
+                <button className="btn secondary" onClick={() => setShowNewVersionModal(false)}>Batal</button>
+                <button
+                  className="btn"
+                  disabled={createVersionMut.isPending}
+                  onClick={() => {
+                    createVersionMut.mutate(copyFromVersionId || undefined);
+                    setShowNewVersionModal(false);
+                  }}
+                >
+                  {createVersionMut.isPending
+                    ? 'Membuat...'
+                    : copyFromVersionId
+                      ? 'Buat & Salin WBD'
+                      : 'Buat Draft Kosong'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Warning Pengajuan Terakhir */}
+      {showSubmitWarning && selectedVersion && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowSubmitWarning(false); }}>
+          <div className="modal-window" style={{ maxWidth: 520 }}>
+            <div className="modal-head">
+              <div>
+                <h4>⚠ Peringatan — Pengajuan Terakhir</h4>
+                <p>Harap baca dengan seksama sebelum melanjutkan.</p>
+              </div>
+              <button className="modal-close" onClick={() => setShowSubmitWarning(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="danger-box">
+                <strong>Ini adalah pengajuan ke-{totalSubmissions + 1} (terakhir) untuk project ini.</strong>
+                <br /><br />
+                Project ini telah {totalSubmissions}x mengajukan WBD ke Direktur Utama.
+                Jika WBD ini ditolak kembali, Anda <strong>tidak dapat mengajukan ulang</strong>.
+                <br /><br />
+                Pastikan seluruh item WBD sudah benar, lengkap, dan telah dikoordinasikan
+                dengan Direktur Utama sebelum melanjutkan.
+              </div>
+            </div>
+            <div className="modal-foot">
+              <div />
+              <div className="cluster">
+                <button className="btn secondary" onClick={() => setShowSubmitWarning(false)}>
+                  Tinjau Kembali WBD
+                </button>
+                <button
+                  className="btn danger"
+                  disabled={submitMut.isPending}
+                  onClick={() => {
+                    submitMut.mutate(selectedVersion.id);
+                    setShowSubmitWarning(false);
+                  }}
+                >
+                  {submitMut.isPending ? 'Mengajukan...' : 'Ya, Ajukan ke Direksi'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
