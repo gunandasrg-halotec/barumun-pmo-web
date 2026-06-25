@@ -31,8 +31,8 @@ export default function Sidebar() {
     <aside className="sidebar">
       <div className="brand">
         <div className="brand-tag">Plantation PMO</div>
-        <h1>Replanting Control Center</h1>
-        <p>Aplikasi manajemen proyek replanting: WBD, biaya, jadwal, dan gantt pekerjaan.</p>
+        <h1>Project Management Control Center</h1>
+        <p>Kelola semua proyek : WBD, biaya, jadwal, progress lapangan, dan pelaporan terintegrasi dalam satu platform.</p>
       </div>
 
       <nav className="sidebar-nav">

@@ -37,8 +37,8 @@ export default function ProjectListPage() {
       <div className="hero" style={{ marginBottom: 20 }}>
         <div className="hero-card">
           <div className="brand-tag">Executive Overview</div>
-          <h3>Replanting Control Center</h3>
-          <p>Kelola semua proyek replanting: WBD, biaya, jadwal, progress lapangan, dan pelaporan terintegrasi dalam satu platform.</p>
+          <h3>Project Management Control Center</h3>
+          <p>Kelola semua proyek : WBD, biaya, jadwal, progress lapangan, dan pelaporan terintegrasi dalam satu platform.</p>
           <div className="hero-grid">
             <div className="hero-stat"><strong>{meta?.total ?? '—'}</strong><span>Total proyek</span></div>
             <div className="hero-stat"><strong>{projects.filter((p: any) => p.status === 'ACTIVE').length}</strong><span>Proyek aktif</span></div>
