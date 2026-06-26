@@ -24,9 +24,9 @@ const STATUS_FILTERS = [
   { value: 'REJECTED',            label: 'Ditolak'        },
 ];
 
-function flattenNodes(nodes: WbdNode[], prefix = ''): { id: string; label: string; unit: string; volume: number | null }[] {
+function flattenNodes(nodes: WbdNode[], prefix = ''): { id: string; label: string; unit: string; volume: number | null; rate: number | null }[] {
   return nodes.flatMap(n => [
-    ...(n.node_type === 'ITEM' ? [{ id: n.id, label: `${prefix}${n.code} — ${n.name}`, unit: n.unit ?? '', volume: n.volume ?? null }] : []),
+    ...(n.node_type === 'ITEM' ? [{ id: n.id, label: `${prefix}${n.code} — ${n.name}`, unit: n.unit ?? '', volume: n.volume ?? null, rate: n.rate ?? null }] : []),
     ...(n.children?.length ? flattenNodes(n.children, prefix + '  ') : []),
   ]);
 }
@@ -467,11 +467,13 @@ export default function ProgressListPage() {
 
 function ProgressCreateForm({
   projectId, itemNodes, onSuccess, onCancel,
-}: { projectId: string; itemNodes: { id: string; label: string; unit: string; volume: number | null }[]; onSuccess: () => void; onCancel: () => void }) {
+}: { projectId: string; itemNodes: { id: string; label: string; unit: string; volume: number | null; rate: number | null }[]; onSuccess: () => void; onCancel: () => void }) {
   const [form, setForm]             = useState({ wbd_node_id: '', progress_date: '', progress_volume: '', actual_cost: '', note: '' });
   const [remainingVolume, setRemainingVolume]   = useState('');
+  const [remainingCost, setRemainingCost]       = useState('');
   const [remainingOverridden, setRemainingOverridden] = useState(false);
-  const [preview, setPreview]       = useState<{ label: string; unit: string; volume: number | null } | null>(null);
+  const [remainingCostOverridden, setRemainingCostOverridden] = useState(false);
+  const [preview, setPreview]       = useState<{ label: string; unit: string; volume: number | null; rate: number | null } | null>(null);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [isLoading, setIsLoading]   = useState(false);
   const [error, setError]           = useState('');
@@ -486,26 +488,37 @@ function ProgressCreateForm({
   function handleNodeSelect(id: string) {
     const node = itemNodes.find(n => n.id === id);
     setForm(p => ({ ...p, wbd_node_id: id }));
-    setPreview(node ? { label: node.label, unit: node.unit, volume: node.volume } : null);
+    setPreview(node ? { label: node.label, unit: node.unit, volume: node.volume, rate: node.rate } : null);
     setRemainingOverridden(false);
-    if (node?.volume != null) {
-      setRemainingVolume(String(Math.max(0, node.volume - realVolume)));
-    } else {
-      setRemainingVolume('');
-    }
+    setRemainingCostOverridden(false);
+    const newRemVol = node?.volume != null ? Math.max(0, node.volume - realVolume) : null;
+    setRemainingVolume(newRemVol != null ? String(newRemVol) : '');
+    setRemainingCost(newRemVol != null && node?.rate != null ? String(Math.round(newRemVol * node.rate)) : '');
   }
 
   function handleProgressVolumeChange(val: string) {
     setForm(p => ({ ...p, progress_volume: val }));
+    const parsed = parseFloat(val) || 0;
     if (!remainingOverridden && planVolume > 0) {
-      const newRemaining = Math.max(0, planVolume - (parseFloat(val) || 0));
-      setRemainingVolume(String(newRemaining));
+      const newRemVol = Math.max(0, planVolume - parsed);
+      setRemainingVolume(String(newRemVol));
+      if (!remainingCostOverridden && preview?.rate != null) {
+        setRemainingCost(String(Math.round(newRemVol * preview.rate)));
+      }
     }
   }
 
   function handleRemainingChange(val: string) {
     setRemainingVolume(val);
     setRemainingOverridden(true);
+    if (!remainingCostOverridden && preview?.rate != null) {
+      setRemainingCost(String(Math.round((parseFloat(val) || 0) * preview.rate)));
+    }
+  }
+
+  function handleRemainingCostChange(val: string) {
+    setRemainingCost(val);
+    setRemainingCostOverridden(true);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -527,6 +540,7 @@ function ProgressCreateForm({
       if (form.note) formData.append('note', form.note);
       if (attachedFile) formData.append('attachment', attachedFile);
       if (remainingVolume !== '') formData.append('remaining_volume', remainingVolume);
+      if (remainingCost !== '') formData.append('remaining_cost', remainingCost);
       await progressService.create(projectId, formData);
       onSuccess();
     } catch (err) { setError(extractError(err)); }
@@ -584,6 +598,23 @@ function ProgressCreateForm({
               ✓ Pekerjaan akan ditandai Selesai
             </div>
           )}
+        </div>
+      )}
+
+      {preview && (
+        <div className="field">
+          <label>
+            Sisa Biaya Estimasi (Rp)
+            <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 11 }}> — auto dari Sisa Volume × Harga Satuan, bisa diubah</span>
+          </label>
+          <input
+            type="number"
+            value={remainingCost}
+            onChange={e => handleRemainingCostChange(e.target.value)}
+            step="1"
+            min="0"
+            placeholder={preview.rate != null ? '(otomatis)' : '0'}
+          />
         </div>
       )}
 

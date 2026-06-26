@@ -57,10 +57,12 @@ export default function ProjectDashboardPage() {
   const dash    = (dashQ.data as any)?.data;
   const st      = STATUS_MAP[project?.status] ?? { label: project?.status, cls: 'planned' };
 
-  const totalCost    = dash?.total_baseline_cost    ?? 0;
-  const actualCost   = dash?.total_actual_cost_approved ?? 0;
-  const deviation    = dash?.cost_deviation_percent ?? 0;
-  const progressPct  = dash?.overall_progress_percent ?? 0;
+  const totalCost          = dash?.total_baseline_cost    ?? 0;
+  const actualCost         = dash?.total_actual_cost_approved ?? 0;
+  const deviation          = dash?.cost_deviation_percent ?? 0;
+  const progressPct        = dash?.overall_progress_percent ?? 0;
+  const plannedProgressPct = dash?.planned_progress_percent ?? progressPct;
+  const actualProgressPct  = dash?.actual_progress_percent  ?? progressPct;
 
   const nodes: any[] = dash?.nodes ?? [];
   const groups = nodes.filter((n: any) => n.node_type === 'GROUP');
@@ -79,8 +81,12 @@ export default function ProjectDashboardPage() {
               <span>Total biaya baseline</span>
             </div>
             <div className="hero-stat">
-              <strong>{progressPct}%</strong>
-              <span>Progress resmi kumulatif</span>
+              <strong>{plannedProgressPct}%</strong>
+              <span>Progress Rencana</span>
+            </div>
+            <div className="hero-stat">
+              <strong>{actualProgressPct}%</strong>
+              <span>Progress Aktual</span>
             </div>
             <div className="hero-stat">
               <strong>{project?.active_wbd_version ? `v${project.active_wbd_version.version_number}` : '—'}</strong>
