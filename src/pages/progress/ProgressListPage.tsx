@@ -24,9 +24,9 @@ const STATUS_FILTERS = [
   { value: 'REJECTED',            label: 'Ditolak'        },
 ];
 
-function flattenNodes(nodes: WbdNode[], prefix = ''): { id: string; label: string; unit: string }[] {
+function flattenNodes(nodes: WbdNode[], prefix = ''): { id: string; label: string; unit: string; volume: number | null }[] {
   return nodes.flatMap(n => [
-    ...(n.node_type === 'ITEM' ? [{ id: n.id, label: `${prefix}${n.code} — ${n.name}`, unit: n.unit ?? '' }] : []),
+    ...(n.node_type === 'ITEM' ? [{ id: n.id, label: `${prefix}${n.code} — ${n.name}`, unit: n.unit ?? '', volume: n.volume ?? null }] : []),
     ...(n.children?.length ? flattenNodes(n.children, prefix + '  ') : []),
   ]);
 }
@@ -197,7 +197,10 @@ export default function ProgressListPage() {
                     const st       = STATUS_MAP[entry.status] ?? { label: entry.status, cls: 'planned' };
                     const volPlan  = Number(entry.wbd_node?.volume ?? 0);
                     const volReal  = Number(entry.progress_volume ?? 0);
-                    const volSisa  = Math.max(0, volPlan - volReal);
+                    const isNodeDone = entry.remaining_volume === 0;
+                    const volSisa  = isNodeDone
+                      ? 0
+                      : (entry.remaining_volume != null ? Number(entry.remaining_volume) : Math.max(0, volPlan - volReal));
                     const costPlan = Number(entry.wbd_node?.planned_cost ?? 0);
                     const costReal = Number(entry.actual_cost ?? 0);
                     const costSisa = costPlan - costReal;
@@ -233,8 +236,14 @@ export default function ProgressListPage() {
                           </div>
                           <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{pct}%</div>
                         </td>
-                        <td style={{ fontSize: 12, color: volSisa === 0 ? 'var(--ok)' : 'inherit' }}>
-                          {formatNumber(volSisa)} <span style={{ color: 'var(--muted)' }}>{entry.wbd_node?.unit}</span>
+                        <td style={{ fontSize: 12 }}>
+                          {isNodeDone ? (
+                            <span className="badge done">Selesai</span>
+                          ) : (
+                            <span style={{ color: volSisa === 0 ? 'var(--ok)' : 'inherit' }}>
+                              {formatNumber(volSisa)} <span style={{ color: 'var(--muted)' }}>{entry.wbd_node?.unit}</span>
+                            </span>
+                          )}
                         </td>
                         <td style={{ fontSize: 12 }}>{formatCurrency(costPlan)}</td>
                         <td style={{ fontSize: 12, fontWeight: 600, color: isOver ? 'var(--danger)' : 'inherit' }}>
@@ -458,22 +467,57 @@ export default function ProgressListPage() {
 
 function ProgressCreateForm({
   projectId, itemNodes, onSuccess, onCancel,
-}: { projectId: string; itemNodes: { id: string; label: string; unit: string }[]; onSuccess: () => void; onCancel: () => void }) {
-  const [form, setForm]       = useState({ wbd_node_id: '', progress_date: '', progress_volume: '', actual_cost: '', note: '' });
-  const [preview, setPreview] = useState<{ label: string; unit: string } | null>(null);
+}: { projectId: string; itemNodes: { id: string; label: string; unit: string; volume: number | null }[]; onSuccess: () => void; onCancel: () => void }) {
+  const [form, setForm]             = useState({ wbd_node_id: '', progress_date: '', progress_volume: '', actual_cost: '', note: '' });
+  const [remainingVolume, setRemainingVolume]   = useState('');
+  const [remainingOverridden, setRemainingOverridden] = useState(false);
+  const [preview, setPreview]       = useState<{ label: string; unit: string; volume: number | null } | null>(null);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError]     = useState('');
+  const [isLoading, setIsLoading]   = useState(false);
+  const [error, setError]           = useState('');
+
+  const planVolume    = preview?.volume ?? 0;
+  const realVolume    = parseFloat(form.progress_volume) || 0;
+  const remainVol     = parseFloat(remainingVolume) || 0;
+  const autoRemaining = planVolume > 0 ? Math.max(0, planVolume - realVolume) : 0;
+  const isOverBudget  = planVolume > 0 && (realVolume + remainVol) > planVolume;
+  const isMarkedDone  = remainingVolume === '0' || remainingVolume.trim() === '0';
 
   function handleNodeSelect(id: string) {
     const node = itemNodes.find(n => n.id === id);
     setForm(p => ({ ...p, wbd_node_id: id }));
-    setPreview(node ? { label: node.label, unit: node.unit } : null);
+    setPreview(node ? { label: node.label, unit: node.unit, volume: node.volume } : null);
+    setRemainingOverridden(false);
+    if (node?.volume != null) {
+      setRemainingVolume(String(Math.max(0, node.volume - realVolume)));
+    } else {
+      setRemainingVolume('');
+    }
+  }
+
+  function handleProgressVolumeChange(val: string) {
+    setForm(p => ({ ...p, progress_volume: val }));
+    if (!remainingOverridden && planVolume > 0) {
+      const newRemaining = Math.max(0, planVolume - (parseFloat(val) || 0));
+      setRemainingVolume(String(newRemaining));
+    }
+  }
+
+  function handleRemainingChange(val: string) {
+    setRemainingVolume(val);
+    setRemainingOverridden(true);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(''); setIsLoading(true);
+    setError('');
+
+    if (isOverBudget && !form.note.trim()) {
+      setError('Catatan lapangan wajib diisi karena estimasi total melebihi volume rencana.');
+      return;
+    }
+
+    setIsLoading(true);
     try {
       const formData = new FormData();
       formData.append('wbd_node_id', form.wbd_node_id);
@@ -482,6 +526,7 @@ function ProgressCreateForm({
       if (form.actual_cost) formData.append('actual_cost', form.actual_cost);
       if (form.note) formData.append('note', form.note);
       if (attachedFile) formData.append('attachment', attachedFile);
+      if (remainingVolume !== '') formData.append('remaining_volume', remainingVolume);
       await progressService.create(projectId, formData);
       onSuccess();
     } catch (err) { setError(extractError(err)); }
@@ -504,6 +549,7 @@ function ProgressCreateForm({
         <div className="panel-block" style={{ marginBottom: 14, fontSize: 12, color: 'var(--muted)' }}>
           <strong style={{ color: 'var(--green-800)' }}>Item dipilih:</strong> {preview.label}
           {preview.unit && <> · Satuan: <span className="chip" style={{ fontSize: 11 }}>{preview.unit}</span></>}
+          {preview.volume != null && <> · Vol. Rencana: <strong style={{ color: 'var(--text)' }}>{formatNumber(preview.volume)} {preview.unit}</strong></>}
         </div>
       )}
 
@@ -514,9 +560,40 @@ function ProgressCreateForm({
         </div>
         <div className="field">
           <label>Volume Realisasi * {preview?.unit && <span style={{ color: 'var(--muted)', fontWeight: 400 }}>({preview.unit})</span>}</label>
-          <input type="number" value={form.progress_volume} onChange={e => setForm(p => ({ ...p, progress_volume: e.target.value }))} step="0.0001" min="0.0001" placeholder="0.0000" required />
+          <input type="number" value={form.progress_volume} onChange={e => handleProgressVolumeChange(e.target.value)} step="0.0001" min="0.0001" placeholder="0.0000" required />
         </div>
       </div>
+
+      {preview && (
+        <div className="field">
+          <label>
+            Sisa Volume Estimasi
+            {preview.unit && <span style={{ color: 'var(--muted)', fontWeight: 400 }}> ({preview.unit})</span>}
+            <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 11 }}> — auto dari Rencana − Realisasi, bisa diubah</span>
+          </label>
+          <input
+            type="number"
+            value={remainingVolume}
+            onChange={e => handleRemainingChange(e.target.value)}
+            step="0.0001"
+            min="0"
+            placeholder={planVolume > 0 ? String(autoRemaining) : '0'}
+          />
+          {isMarkedDone && (
+            <div style={{ fontSize: 12, color: 'var(--ok)', marginTop: 4, fontWeight: 600 }}>
+              ✓ Pekerjaan akan ditandai Selesai
+            </div>
+          )}
+        </div>
+      )}
+
+      {isOverBudget && (
+        <div className="danger-box" style={{ fontSize: 13, marginBottom: 12 }}>
+          ⚠ Total estimasi ({formatNumber(realVolume + remainVol)} {preview?.unit}) melebihi volume rencana
+          ({formatNumber(planVolume)} {preview?.unit}). Catatan lapangan <strong>wajib diisi</strong> dan
+          Direktur Utama akan mendapat notifikasi.
+        </div>
+      )}
 
       <div className="field">
         <label>Biaya Realisasi (Rp) <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— opsional</span></label>
@@ -524,13 +601,16 @@ function ProgressCreateForm({
       </div>
 
       <div className="field">
-        <label>Catatan Lapangan</label>
+        <label>
+          Catatan Lapangan
+          {isOverBudget && <span style={{ color: 'var(--danger)', fontWeight: 600 }}> *</span>}
+        </label>
         <textarea
           value={form.note}
           onChange={e => setForm(p => ({ ...p, note: e.target.value }))}
           rows={3}
-          placeholder="Kondisi lapangan, kendala, atau keterangan tambahan..."
-          style={{ width: '100%' }}
+          placeholder={isOverBudget ? 'Wajib diisi — jelaskan kondisi yang menyebabkan potensi over budget...' : 'Kondisi lapangan, kendala, atau keterangan tambahan...'}
+          style={{ width: '100%', borderColor: isOverBudget && !form.note.trim() ? 'var(--danger)' : undefined }}
         />
       </div>
 
