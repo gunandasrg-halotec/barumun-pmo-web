@@ -3,7 +3,11 @@ import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { analyticsService } from '../../services/analyticsService';
 import { extractError } from '../../utils/format';
-import type { GanttNode } from '../../types';
+import type { GanttNode, WbdNodeDependency } from '../../types';
+
+const DEP_LABELS: Record<string, string> = { FS: 'Finish→Start', SS: 'Start→Start', FF: 'Finish→Finish', SF: 'Start→Finish' };
+const ROW_H = 56;  // must match .timeline-grid-row height in CSS
+const BAR_MID_Y = 18 + 16; // top offset of bar + half bar height (~16px)
 
 const GROUP_CLASSES = ['group-a', 'group-b', 'group-c', 'group-d', 'group-e', 'group-f'];
 const GROUP_COLORS  = ['#2d7d46', '#cf9f3c', '#6cb0a7', '#d8824d', '#c08257', '#7b8b97'];
@@ -22,6 +26,99 @@ function widthPct(startStr: string | null, endStr: string | null): number {
   return Math.min(100 - pct(startStr), Math.max(0.5, ((new Date(endStr).getTime() - new Date(startStr).getTime()) / TOTAL_MS) * 100));
 }
 
+// ─── Dependency Arrows SVG Overlay ───────────────────────────────────────────
+
+function DependencyArrows({
+  rows,
+  dependencies,
+}: {
+  rows: { node: GanttNode; groupIdx: number; depth: number; isCollapsed: boolean }[];
+  dependencies: WbdNodeDependency[];
+}) {
+  if (dependencies.length === 0) return null;
+
+  // Map nodeId → row index in the currently visible rows
+  const rowIndex = new Map<string, number>();
+  rows.forEach(({ node }, i) => rowIndex.set(node.id, i));
+
+  const arrows: React.ReactNode[] = [];
+
+  dependencies.forEach(dep => {
+    const predIdx = rowIndex.get(dep.predecessor_node_id);
+    const succIdx = rowIndex.get(dep.successor_node_id);
+    if (predIdx == null || succIdx == null) return; // one side is collapsed/hidden
+
+    const predNode = rows[predIdx].node;
+    const succNode = rows[succIdx].node;
+
+    // X positions (%) based on dependency type
+    let x1Pct: number, x2Pct: number;
+    if (dep.dependency_type === 'FS' || dep.dependency_type === 'FF') {
+      x1Pct = pct(predNode.start_date) + widthPct(predNode.start_date, predNode.end_date); // end of pred
+    } else {
+      x1Pct = pct(predNode.start_date); // start of pred
+    }
+    if (dep.dependency_type === 'FS' || dep.dependency_type === 'SS') {
+      x2Pct = pct(succNode.start_date); // start of succ
+    } else {
+      x2Pct = pct(succNode.start_date) + widthPct(succNode.start_date, succNode.end_date); // end of succ
+    }
+
+    if (x1Pct <= 0 && x2Pct <= 0) return; // no dates
+
+    const y1 = predIdx * ROW_H + BAR_MID_Y;
+    const y2 = succIdx * ROW_H + BAR_MID_Y;
+
+    // Use % for x but px for y — render in a 100%×totalHeight SVG
+    // We'll use a 1000-unit wide coordinate space for x to work with %
+    const X = (pct: number) => (pct / 100) * 1000;
+    const x1 = X(x1Pct);
+    const x2 = X(x2Pct);
+    const midX = (x1 + x2) / 2;
+
+    const key = dep.id;
+    const color = '#f59e0b'; // amber
+
+    arrows.push(
+      <g key={key}>
+        <path
+          d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
+          stroke={color}
+          strokeWidth="1.5"
+          fill="none"
+          strokeDasharray="5 3"
+          opacity="0.8"
+        />
+        {/* Arrowhead */}
+        <polygon
+          points={`${x2},${y2} ${x2 - 6},${y2 - 4} ${x2 - 6},${y2 + 4}`}
+          fill={color}
+          opacity="0.8"
+        />
+        {/* Label */}
+        <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 4} fontSize="9" fill={color} textAnchor="middle" opacity="0.9">
+          {dep.dependency_type}
+        </text>
+      </g>
+    );
+  });
+
+  if (arrows.length === 0) return null;
+  const totalHeight = rows.length * ROW_H;
+
+  return (
+    <svg
+      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: totalHeight, pointerEvents: 'none', zIndex: 10 }}
+      viewBox={`0 0 1000 ${totalHeight}`}
+      preserveAspectRatio="none"
+    >
+      {arrows}
+    </svg>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function GanttPage() {
   const { projectId } = useParams<{ projectId: string }>();
 
@@ -31,7 +128,8 @@ export default function GanttPage() {
     enabled: !!projectId,
   });
 
-  const allNodes: GanttNode[] = (data as any)?.data ?? [];
+  const allNodes: GanttNode[]          = (data as any)?.data ?? [];
+  const dependencies: WbdNodeDependency[] = (data as any)?.dependencies ?? [];
 
   const groupIds = useMemo(
     () => new Set(allNodes.filter(n => n.node_type === 'GROUP').map(n => n.id)),
@@ -209,7 +307,7 @@ export default function GanttPage() {
                 </div>
               </div>
 
-              <div className="timeline-body">
+              <div className="timeline-body" style={{ position: 'relative' }}>
                 <div className="today-line" style={{ left: `${Math.min(98, Math.max(2, todayPct))}%` }} />
 
                 {rows.map(({ node, groupIdx }) => {
@@ -238,6 +336,9 @@ export default function GanttPage() {
                     </div>
                   );
                 })}
+
+                {/* Dependency arrows overlay */}
+                <DependencyArrows rows={rows} dependencies={dependencies} />
               </div>
             </div>
           </div>
@@ -252,6 +353,9 @@ export default function GanttPage() {
             </div>
           ))}
           <div className="chip"><i style={{ background: 'var(--danger)' }} /> Risiko Delay</div>
+          {dependencies.length > 0 && (
+            <div className="chip"><i style={{ background: '#f59e0b' }} /> Dependensi ({dependencies.length})</div>
+          )}
         </div>
 
         <div className="empty-state" style={{ marginTop: 12 }}>

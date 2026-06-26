@@ -2,7 +2,114 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { wbdService } from '../../services/wbdService';
 import { formatCurrency, formatNumber, formatDate, extractError } from '../../utils/format';
-import type { WbdNode } from '../../types';
+import type { WbdNode, WbdNodePredecessor, DependencyType } from '../../types';
+
+const DEP_TYPE_LABELS: Record<DependencyType, string> = {
+  FS: 'Finish-to-Start',
+  SS: 'Start-to-Start',
+  FF: 'Finish-to-Finish',
+  SF: 'Start-to-Finish',
+};
+
+// ─── Dependency Row Panel ────────────────────────────────────────────────────
+
+function DependencyPanel({
+  node,
+  allNodes,
+  isEditable,
+  onRefresh,
+}: {
+  node: WbdNode;
+  allNodes: WbdNode[];
+  isEditable: boolean;
+  onRefresh: () => void;
+}) {
+  const [adding, setAdding]   = useState(false);
+  const [predId, setPredId]   = useState('');
+  const [depType, setDepType] = useState<DependencyType>('FS');
+  const [error, setError]     = useState('');
+
+  const addMut = useMutation({
+    mutationFn: () => wbdService.addDependency(node.id, predId, depType),
+    onSuccess: () => { setAdding(false); setPredId(''); setDepType('FS'); setError(''); onRefresh(); },
+    onError: (err: any) => setError(extractError(err)),
+  });
+
+  const removeMut = useMutation({
+    mutationFn: (depId: string) => wbdService.removeDependency(depId),
+    onSuccess: onRefresh,
+  });
+
+  const predecessors: WbdNodePredecessor[] = node.predecessors ?? [];
+  const usedIds = new Set(predecessors.map(p => p.predecessor_id));
+  const candidateNodes = allNodes.filter(
+    n => n.node_type === 'ITEM' && n.id !== node.id && !usedIds.has(n.id)
+  );
+
+  if (predecessors.length === 0 && !isEditable) return null;
+
+  return (
+    <div style={{ fontSize: 12, marginTop: 6, paddingLeft: 4 }}>
+      {predecessors.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+          {predecessors.map(p => (
+            <span key={p.id} className="chip" style={{ background: 'var(--surface)', border: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <strong style={{ color: 'var(--green-700)' }}>{p.dependency_type}</strong>
+              ← {p.code} {p.name}
+              {isEditable && (
+                <button
+                  onClick={() => removeMut.mutate(p.id)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: '0 2px', fontSize: 13, lineHeight: 1 }}
+                  title="Hapus relasi"
+                  disabled={removeMut.isPending}
+                >×</button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {isEditable && !adding && (
+        <button
+          className="chip clickable"
+          style={{ fontSize: 11, color: 'var(--muted)' }}
+          onClick={() => setAdding(true)}
+        >
+          + Tambah Relasi
+        </button>
+      )}
+
+      {adding && (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
+          <select value={depType} onChange={e => setDepType(e.target.value as DependencyType)} style={{ fontSize: 12 }}>
+            {(Object.keys(DEP_TYPE_LABELS) as DependencyType[]).map(t => (
+              <option key={t} value={t}>{t} — {DEP_TYPE_LABELS[t]}</option>
+            ))}
+          </select>
+          <span style={{ color: 'var(--muted)', fontSize: 12 }}>←</span>
+          <select value={predId} onChange={e => setPredId(e.target.value)} style={{ fontSize: 12, minWidth: 160 }}>
+            <option value="">Pilih predecessor...</option>
+            {candidateNodes.map(n => (
+              <option key={n.id} value={n.id}>{n.code} — {n.name}</option>
+            ))}
+          </select>
+          <button
+            className="btn btn-primary"
+            style={{ fontSize: 11, padding: '3px 10px' }}
+            onClick={() => { if (!predId) return; addMut.mutate(); }}
+            disabled={!predId || addMut.isPending}
+          >Simpan</button>
+          <button
+            className="btn btn-secondary"
+            style={{ fontSize: 11, padding: '3px 10px' }}
+            onClick={() => { setAdding(false); setError(''); }}
+          >Batal</button>
+          {error && <span style={{ color: 'var(--danger)', fontSize: 11 }}>{error}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface Props {
   nodes: WbdNode[];
@@ -223,6 +330,16 @@ export default function WbdTree({ nodes, isEditable, onAddChild, onRefresh }: Pr
           <td>{endDate !== '—' ? formatDate(endDate) : '—'}</td>
           <td><span className={`badge ${st.cls}`}>{st.label}</span></td>
           <td>
+            {!isGroup && (
+              <DependencyPanel
+                node={node}
+                allNodes={nodes}
+                isEditable={isEditable}
+                onRefresh={onRefresh}
+              />
+            )}
+          </td>
+          <td>
             {isEditable && (
               <div className="cluster">
                 <button className="chip clickable" onClick={() => onAddChild(node)}>+ Item</button>
@@ -256,6 +373,7 @@ export default function WbdTree({ nodes, isEditable, onAddChild, onRefresh }: Pr
             <td>{formatCurrency(subtotal)}</td>
             <td></td><td></td><td></td><td></td><td></td>
             <td><span className="badge done">Subtotal</span></td>
+            <td></td>
             <td><span className="chip">Terkunci</span></td>
           </tr>
         )}
@@ -289,6 +407,7 @@ export default function WbdTree({ nodes, isEditable, onAddChild, onRefresh }: Pr
               <th>Durasi</th>
               <th>Tanggal Akhir</th>
               <th>Status</th>
+              <th>Relasi</th>
               <th>Aksi</th>
             </tr>
           </thead>

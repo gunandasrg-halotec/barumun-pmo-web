@@ -57,4 +57,18 @@ export const wbdService = {
     const res = await api.delete<ApiResponse<null>>(`/wbd-nodes/${nodeId}`);
     return res.data;
   },
+
+  // Dependencies
+  addDependency: async (successorNodeId: string, predecessorNodeId: string, dependencyType: string) => {
+    const res = await api.post(`/wbd-nodes/${successorNodeId}/dependencies`, {
+      predecessor_node_id: predecessorNodeId,
+      dependency_type: dependencyType,
+    });
+    return res.data;
+  },
+
+  removeDependency: async (dependencyId: string) => {
+    const res = await api.delete(`/wbd-node-dependencies/${dependencyId}`);
+    return res.data;
+  },
 };

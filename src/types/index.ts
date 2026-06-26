@@ -86,6 +86,23 @@ export interface WbdVersion {
 
 export type NodeType = "GROUP" | "ITEM";
 
+export type DependencyType = 'FS' | 'SS' | 'FF' | 'SF';
+
+export interface WbdNodePredecessor {
+  id: string;
+  predecessor_id: string;
+  code: string;
+  name: string;
+  dependency_type: DependencyType;
+}
+
+export interface WbdNodeDependency {
+  id: string;
+  predecessor_node_id: string;
+  successor_node_id: string;
+  dependency_type: DependencyType;
+}
+
 export interface WbdNode {
   id: string;
   wbd_version_id: string;
@@ -101,6 +118,7 @@ export interface WbdNode {
   component_percent?: number | null;
   total_percent?: number | null;
   start_date?: string | null;
+  predecessors?: WbdNodePredecessor[];
   duration_days?: number | null;
   end_date?: string | null;
   status: string;
