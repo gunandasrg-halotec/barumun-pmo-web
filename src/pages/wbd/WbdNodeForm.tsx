@@ -2,15 +2,17 @@ import { useState, SubmitEvent } from 'react';
 import { wbdService } from '../../services/wbdService';
 import { extractError } from '../../utils/format';
 import type { WbdNode } from '../../types';
+import { AddDependencyModal } from './WbdTree';
 
 interface Props {
   versionId: string;
   parentNode: WbdNode | null;
+  allNodes: WbdNode[];
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-export default function WbdNodeForm({ versionId, parentNode, onSuccess, onCancel }: Props) {
+export default function WbdNodeForm({ versionId, parentNode, allNodes, onSuccess, onCancel }: Props) {
   const [form, setForm] = useState({
     node_type: parentNode ? 'ITEM' : 'GROUP',
     code: '',
@@ -26,6 +28,9 @@ export default function WbdNodeForm({ versionId, parentNode, onSuccess, onCancel
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  // After creation of an ITEM node, offer to add dependencies
+  const [createdNode, setCreatedNode] = useState<WbdNode | null>(null);
+  const [showDepModal, setShowDepModal] = useState(false);
 
   const isItem = form.node_type === 'ITEM';
 
@@ -57,8 +62,13 @@ export default function WbdNodeForm({ versionId, parentNode, onSuccess, onCancel
     }
 
     try {
-      await wbdService.createNode(versionId, payload);
-      onSuccess();
+      const res = await wbdService.createNode(versionId, payload);
+      const newNode: WbdNode = (res as any)?.data;
+      if (isItem && newNode?.id) {
+        setCreatedNode({ ...newNode, predecessors: [] });
+      } else {
+        onSuccess();
+      }
     } catch (err: any) {
       if (err?.response?.data?.errors) {
         setFieldErrors(err.response.data.errors);
@@ -74,6 +84,44 @@ export default function WbdNodeForm({ versionId, parentNode, onSuccess, onCancel
     fieldErrors[name]?.length ? (
       <div className="form-error">{fieldErrors[name][0]}</div>
     ) : null;
+
+  // Step 2: node created — offer dependency step
+  if (createdNode) {
+    return (
+      <div>
+        <div className="info-box" style={{ marginBottom: 16 }}>
+          ✓ Item <strong>{createdNode.code} — {createdNode.name}</strong> berhasil ditambahkan.
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
+          Apakah item ini bergantung pada task lain? Tambahkan relasi sekarang (opsional).
+        </p>
+        {createdNode.predecessors && createdNode.predecessors.length > 0 && (
+          <div style={{ marginBottom: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {createdNode.predecessors.map(p => (
+              <span key={p.id} className="chip" style={{ background: 'var(--surface)', border: '1px solid var(--line)', fontSize: 12 }}>
+                <strong style={{ color: 'var(--green-700)' }}>{p.dependency_type}</strong> ← {p.code}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="btn-group" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
+          <button className="btn btn-secondary" onClick={onSuccess}>Selesai tanpa relasi</button>
+          <button className="btn btn-primary" onClick={() => setShowDepModal(true)}>+ Tambah Relasi</button>
+        </div>
+        {showDepModal && (
+          <AddDependencyModal
+            node={createdNode}
+            allNodes={allNodes}
+            onClose={() => setShowDepModal(false)}
+            onSaved={() => {
+              setCreatedNode(prev => prev ? { ...prev, predecessors: [...(prev.predecessors ?? [])] } : prev);
+              setShowDepModal(false);
+            }}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit}>

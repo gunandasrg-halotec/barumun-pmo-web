@@ -7,8 +7,9 @@ export const analyticsService = {
     return res.data;
   },
 
-  gantt: async (projectId: string) => {
-    const res = await api.get<ApiResponse<GanttNode[]>>(`/projects/${projectId}/gantt`);
+  gantt: async (projectId: string, wbdVersionId?: string) => {
+    const params = wbdVersionId ? { wbd_version_id: wbdVersionId } : {};
+    const res = await api.get<ApiResponse<GanttNode[]>>(`/projects/${projectId}/gantt`, { params });
     return res.data;
   },
 

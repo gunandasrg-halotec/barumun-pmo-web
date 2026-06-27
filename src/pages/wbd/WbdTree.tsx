@@ -13,6 +13,90 @@ const DEP_TYPE_LABELS: Record<DependencyType, string> = {
 
 // ─── Dependency Row Panel ────────────────────────────────────────────────────
 
+// ─── Add Dependency Modal ────────────────────────────────────────────────────
+
+export function AddDependencyModal({
+  node,
+  allNodes,
+  onClose,
+  onSaved,
+}: {
+  node: WbdNode;
+  allNodes: WbdNode[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [predId, setPredId]   = useState('');
+  const [depType, setDepType] = useState<DependencyType>('FS');
+  const [error, setError]     = useState('');
+
+  const usedIds = new Set((node.predecessors ?? []).map(p => p.predecessor_id));
+  const candidateNodes = allNodes.filter(
+    n => n.node_type === 'ITEM' && n.id !== node.id && !usedIds.has(n.id)
+  );
+
+  const addMut = useMutation({
+    mutationFn: () => wbdService.addDependency(node.id, predId, depType),
+    onSuccess: () => { onSaved(); onClose(); },
+    onError: (err: any) => setError(extractError(err)),
+  });
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
+        <div className="modal-header">
+          <h3>Tambah Relasi — {node.code}</h3>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <div style={{ padding: '16px 20px' }}>
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
+            Task <strong>{node.code} {node.name}</strong> bergantung pada:
+          </p>
+
+          {error && <div className="danger-box" style={{ marginBottom: 12 }}>{error}</div>}
+
+          <div className="field" style={{ marginBottom: 12 }}>
+            <label>Tipe Relasi</label>
+            <select value={depType} onChange={e => setDepType(e.target.value as DependencyType)} style={{ width: '100%' }}>
+              {(Object.keys(DEP_TYPE_LABELS) as DependencyType[]).map(t => (
+                <option key={t} value={t}>{t} — {DEP_TYPE_LABELS[t]}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="field" style={{ marginBottom: 20 }}>
+            <label>Predecessor (task yang harus lebih dulu)</label>
+            <select value={predId} onChange={e => setPredId(e.target.value)} style={{ width: '100%' }}>
+              <option value="">Pilih predecessor...</option>
+              {candidateNodes.map(n => (
+                <option key={n.id} value={n.id}>{n.code} — {n.name}</option>
+              ))}
+            </select>
+            {candidateNodes.length === 0 && (
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                Tidak ada task lain yang tersedia sebagai predecessor.
+              </div>
+            )}
+          </div>
+
+          <div className="btn-group" style={{ justifyContent: 'flex-end' }}>
+            <button className="btn btn-secondary" onClick={onClose}>Batal</button>
+            <button
+              className="btn btn-primary"
+              onClick={() => { if (predId) addMut.mutate(); }}
+              disabled={!predId || addMut.isPending}
+            >
+              {addMut.isPending ? 'Menyimpan...' : 'Simpan Relasi'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Dependency Panel (compact chips + open modal button) ────────────────────
+
 function DependencyPanel({
   node,
   allNodes,
@@ -24,16 +108,7 @@ function DependencyPanel({
   isEditable: boolean;
   onRefresh: () => void;
 }) {
-  const [adding, setAdding]   = useState(false);
-  const [predId, setPredId]   = useState('');
-  const [depType, setDepType] = useState<DependencyType>('FS');
-  const [error, setError]     = useState('');
-
-  const addMut = useMutation({
-    mutationFn: () => wbdService.addDependency(node.id, predId, depType),
-    onSuccess: () => { setAdding(false); setPredId(''); setDepType('FS'); setError(''); onRefresh(); },
-    onError: (err: any) => setError(extractError(err)),
-  });
+  const [showModal, setShowModal] = useState(false);
 
   const removeMut = useMutation({
     mutationFn: (depId: string) => wbdService.removeDependency(depId),
@@ -41,71 +116,46 @@ function DependencyPanel({
   });
 
   const predecessors: WbdNodePredecessor[] = node.predecessors ?? [];
-  const usedIds = new Set(predecessors.map(p => p.predecessor_id));
-  const candidateNodes = allNodes.filter(
-    n => n.node_type === 'ITEM' && n.id !== node.id && !usedIds.has(n.id)
-  );
 
   if (predecessors.length === 0 && !isEditable) return null;
 
   return (
-    <div style={{ fontSize: 12, marginTop: 6, paddingLeft: 4 }}>
-      {predecessors.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
-          {predecessors.map(p => (
-            <span key={p.id} className="chip" style={{ background: 'var(--surface)', border: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <strong style={{ color: 'var(--green-700)' }}>{p.dependency_type}</strong>
-              ← {p.code} {p.name}
-              {isEditable && (
-                <button
-                  onClick={() => removeMut.mutate(p.id)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: '0 2px', fontSize: 13, lineHeight: 1 }}
-                  title="Hapus relasi"
-                  disabled={removeMut.isPending}
-                >×</button>
-              )}
-            </span>
-          ))}
-        </div>
-      )}
+    <div style={{ fontSize: 12 }}>
+      {/* Compact chips — code only */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: predecessors.length && isEditable ? 4 : 0 }}>
+        {predecessors.map(p => (
+          <span key={p.id} className="chip" style={{ background: 'var(--surface)', border: '1px solid var(--line)', display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11 }}
+            title={`${DEP_TYPE_LABELS[p.dependency_type]}: ${p.code} ${p.name}`}
+          >
+            <strong style={{ color: 'var(--green-700)' }}>{p.dependency_type}</strong>
+            ←{p.code}
+            {isEditable && (
+              <button
+                onClick={() => removeMut.mutate(p.id)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: '0 1px', fontSize: 12, lineHeight: 1 }}
+                title="Hapus relasi"
+                disabled={removeMut.isPending}
+              >×</button>
+            )}
+          </span>
+        ))}
+      </div>
 
-      {isEditable && !adding && (
+      {isEditable && (
         <button
           className="chip clickable"
           style={{ fontSize: 11, color: 'var(--muted)' }}
-          onClick={() => setAdding(true)}
-        >
-          + Tambah Relasi
-        </button>
+          onClick={() => setShowModal(true)}
+        >+ Tambah Relasi</button>
       )}
 
-      {adding && (
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
-          <select value={depType} onChange={e => setDepType(e.target.value as DependencyType)} style={{ fontSize: 12 }}>
-            {(Object.keys(DEP_TYPE_LABELS) as DependencyType[]).map(t => (
-              <option key={t} value={t}>{t} — {DEP_TYPE_LABELS[t]}</option>
-            ))}
-          </select>
-          <span style={{ color: 'var(--muted)', fontSize: 12 }}>←</span>
-          <select value={predId} onChange={e => setPredId(e.target.value)} style={{ fontSize: 12, minWidth: 160 }}>
-            <option value="">Pilih predecessor...</option>
-            {candidateNodes.map(n => (
-              <option key={n.id} value={n.id}>{n.code} — {n.name}</option>
-            ))}
-          </select>
-          <button
-            className="btn btn-primary"
-            style={{ fontSize: 11, padding: '3px 10px' }}
-            onClick={() => { if (!predId) return; addMut.mutate(); }}
-            disabled={!predId || addMut.isPending}
-          >Simpan</button>
-          <button
-            className="btn btn-secondary"
-            style={{ fontSize: 11, padding: '3px 10px' }}
-            onClick={() => { setAdding(false); setError(''); }}
-          >Batal</button>
-          {error && <span style={{ color: 'var(--danger)', fontSize: 11 }}>{error}</span>}
-        </div>
+      {showModal && (
+        <AddDependencyModal
+          node={node}
+          allNodes={allNodes}
+          onClose={() => setShowModal(false)}
+          onSaved={onRefresh}
+        />
       )}
     </div>
   );
@@ -135,7 +185,7 @@ function computeEndDate(startDate: string | null, durationDays: number | null): 
 
 // ─── Edit Form ───────────────────────────────────────────────────────────────
 
-function EditNodeForm({ node, onClose, onSaved }: { node: WbdNode; onClose: () => void; onSaved: () => void }) {
+function EditNodeForm({ node, allNodes, onClose, onSaved }: { node: WbdNode; allNodes: WbdNode[]; onClose: () => void; onSaved: () => void }) {
   const isItem = node.node_type === 'ITEM';
   const [form, setForm] = useState({
     name:          node.name ?? '',
@@ -244,6 +294,13 @@ function EditNodeForm({ node, onClose, onSaved }: { node: WbdNode; onClose: () =
         <label>Deskripsi</label>
         <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} />
       </div>
+
+      {isItem && (
+        <div className="form-grid field" style={{ marginTop: 4 }}>
+          <label>Relasi (Dependensi Task)</label>
+          <DependencyPanel node={node} allNodes={allNodes} isEditable={true} onRefresh={onSaved} />
+        </div>
+      )}
 
       <div className="btn-group" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>Batal</button>
@@ -447,6 +504,7 @@ export default function WbdTree({ nodes, isEditable, onAddChild, onRefresh }: Pr
             <div className="modal-body">
               <EditNodeForm
                 node={editNode}
+                allNodes={nodes}
                 onClose={() => setEditNode(null)}
                 onSaved={() => { setEditNode(null); onRefresh(); }}
               />

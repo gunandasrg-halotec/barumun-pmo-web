@@ -2,8 +2,9 @@ import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { analyticsService } from '../../services/analyticsService';
+import { wbdService } from '../../services/wbdService';
 import { extractError } from '../../utils/format';
-import type { GanttNode, WbdNodeDependency } from '../../types';
+import type { GanttNode, WbdNodeDependency, WbdVersion } from '../../types';
 
 const DEP_LABELS: Record<string, string> = { FS: 'Finish→Start', SS: 'Start→Start', FF: 'Finish→Finish', SF: 'Start→Finish' };
 const ROW_H = 56;  // must match .timeline-grid-row height in CSS
@@ -121,15 +122,24 @@ function DependencyArrows({
 
 export default function GanttPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  const [selectedVersionId, setSelectedVersionId] = useState<string>('');
+
+  const versionsQ = useQuery({
+    queryKey: ['wbd-versions', projectId],
+    queryFn: () => wbdService.listVersions(projectId!),
+    enabled: !!projectId,
+  });
+  const versions: WbdVersion[] = (versionsQ.data as any)?.data ?? [];
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['gantt', projectId],
-    queryFn: () => analyticsService.gantt(projectId!),
+    queryKey: ['gantt', projectId, selectedVersionId],
+    queryFn: () => analyticsService.gantt(projectId!, selectedVersionId || undefined),
     enabled: !!projectId,
   });
 
-  const allNodes: GanttNode[]          = (data as any)?.data ?? [];
+  const allNodes: GanttNode[]             = (data as any)?.data ?? [];
   const dependencies: WbdNodeDependency[] = (data as any)?.dependencies ?? [];
+  const isActiveVersion: boolean          = (data as any)?.meta?.is_active_version !== false;
 
   const groupIds = useMemo(
     () => new Set(allNodes.filter(n => n.node_type === 'GROUP').map(n => n.id)),
@@ -209,18 +219,31 @@ export default function GanttPage() {
           <div>
             <h3 style={{ margin: 0 }}>Gantt Chart Berdasarkan WBD</h3>
             <p style={{ margin: '6px 0 0', color: 'var(--muted)', fontSize: 13 }}>
-              Timeline mingguan Juni – Desember 2026. Bersumber dari baseline WBD aktif — <strong>read-only</strong>.
+              Timeline mingguan Juni – Desember 2026 — <strong>read-only</strong>.
+              {!isActiveVersion && <span style={{ color: 'var(--warning)', marginLeft: 8 }}>⚠ Versi non-aktif — timeline saja, tanpa data realisasi.</span>}
             </p>
           </div>
           <div className="cluster">
             <span className="chip">Zoom: Mingguan</span>
-            <span className="chip status-ok">On Track {onTrack}</span>
-            <span className="chip status-warn">Delay {delayed}</span>
-            <span className="chip">Selesai {done}</span>
+            {isActiveVersion && <span className="chip status-ok">On Track {onTrack}</span>}
+            {isActiveVersion && <span className="chip status-warn">Delay {delayed}</span>}
+            {isActiveVersion && <span className="chip">Selesai {done}</span>}
           </div>
         </div>
 
         <div className="toolbar">
+          <select
+            value={selectedVersionId}
+            onChange={e => { setSelectedVersionId(e.target.value); setInitialized(false); }}
+            style={{ fontWeight: 600 }}
+          >
+            <option value="">— Versi Aktif (Baseline) —</option>
+            {versions.map(v => (
+              <option key={v.id} value={v.id}>
+                v{v.version_number} — {v.status}
+              </option>
+            ))}
+          </select>
           <select><option>Semua Grup</option>{rootNodes.map(n => <option key={n.id}>{n.name}</option>)}</select>
           <select><option>Semua Status</option><option>On Track</option><option>Delay</option><option>Selesai</option></select>
           <select><option>Mingguan</option><option>Bulanan</option></select>

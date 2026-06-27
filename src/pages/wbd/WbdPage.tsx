@@ -314,6 +314,7 @@ export default function WbdPage() {
               <WbdNodeForm
                 versionId={selectedVersion.id}
                 parentNode={parentNode}
+                allNodes={nodes}
                 onSuccess={() => { setShowAddNode(false); queryClient.invalidateQueries({ queryKey: ['wbd-nodes', selectedVersion.id] }); }}
                 onCancel={() => setShowAddNode(false)}
               />
