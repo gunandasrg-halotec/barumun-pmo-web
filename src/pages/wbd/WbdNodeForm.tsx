@@ -64,7 +64,7 @@ export default function WbdNodeForm({ versionId, parentNode, allNodes, onSuccess
     try {
       const res = await wbdService.createNode(versionId, payload);
       const newNode: WbdNode = (res as any)?.data;
-      if (isItem && newNode?.id) {
+      if (newNode?.id) {
         setCreatedNode({ ...newNode, predecessors: [] });
       } else {
         onSuccess();

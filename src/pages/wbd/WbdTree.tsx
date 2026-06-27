@@ -31,9 +31,12 @@ export function AddDependencyModal({
   const [error, setError]     = useState('');
 
   const usedIds = new Set((node.predecessors ?? []).map(p => p.predecessor_id));
+  // Allow both ITEM and GROUP as predecessors, excluding the node itself
   const candidateNodes = allNodes.filter(
-    n => n.node_type === 'ITEM' && n.id !== node.id && !usedIds.has(n.id)
+    n => n.id !== node.id && !usedIds.has(n.id)
   );
+  const groupCandidates = candidateNodes.filter(n => n.node_type === 'GROUP');
+  const itemCandidates  = candidateNodes.filter(n => n.node_type === 'ITEM');
 
   const addMut = useMutation({
     mutationFn: () => wbdService.addDependency(node.id, predId, depType),
@@ -65,18 +68,34 @@ export function AddDependencyModal({
           </div>
 
           <div className="field" style={{ marginBottom: 20 }}>
-            <label>Predecessor (task yang harus lebih dulu)</label>
+            <label>Predecessor (task/grup yang harus lebih dulu)</label>
             <select value={predId} onChange={e => setPredId(e.target.value)} style={{ width: '100%' }}>
               <option value="">Pilih predecessor...</option>
-              {candidateNodes.map(n => (
-                <option key={n.id} value={n.id}>{n.code} — {n.name}</option>
-              ))}
+              {groupCandidates.length > 0 && (
+                <optgroup label="── Grup ──">
+                  {groupCandidates.map(n => (
+                    <option key={n.id} value={n.id}>{n.code} — {n.name} [GRUP]</option>
+                  ))}
+                </optgroup>
+              )}
+              {itemCandidates.length > 0 && (
+                <optgroup label="── Item ──">
+                  {itemCandidates.map(n => (
+                    <option key={n.id} value={n.id}>{n.code} — {n.name}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
             {candidateNodes.length === 0 && (
               <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                Tidak ada task lain yang tersedia sebagai predecessor.
+                Tidak ada node lain yang tersedia sebagai predecessor.
               </div>
             )}
+          </div>
+
+          <div className="info-box" style={{ fontSize: 12, marginBottom: 16 }}>
+            <strong>Catatan:</strong> Tanggal mulai/selesai task ini akan otomatis disesuaikan setelah relasi disimpan.
+            Jika predecessor adalah sebuah Grup, sistem akan menggunakan tanggal akhir item terakhir di dalam grup tersebut.
           </div>
 
           <div className="btn-group" style={{ justifyContent: 'flex-end' }}>
@@ -295,12 +314,10 @@ function EditNodeForm({ node, allNodes, onClose, onSaved }: { node: WbdNode; all
         <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} />
       </div>
 
-      {isItem && (
-        <div className="form-grid field" style={{ marginTop: 4 }}>
-          <label>Relasi (Dependensi Task)</label>
-          <DependencyPanel node={node} allNodes={allNodes} isEditable={true} onRefresh={onSaved} />
-        </div>
-      )}
+      <div className="form-grid field" style={{ marginTop: 4 }}>
+        <label>Relasi (Dependensi Task)</label>
+        <DependencyPanel node={node} allNodes={allNodes} isEditable={true} onRefresh={onSaved} />
+      </div>
 
       <div className="btn-group" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>Batal</button>
@@ -387,14 +404,12 @@ export default function WbdTree({ nodes, isEditable, onAddChild, onRefresh }: Pr
           <td>{endDate !== '—' ? formatDate(endDate) : '—'}</td>
           <td><span className={`badge ${st.cls}`}>{st.label}</span></td>
           <td>
-            {!isGroup && (
-              <DependencyPanel
-                node={node}
-                allNodes={nodes}
-                isEditable={isEditable}
-                onRefresh={onRefresh}
-              />
-            )}
+            <DependencyPanel
+              node={node}
+              allNodes={nodes}
+              isEditable={isEditable}
+              onRefresh={onRefresh}
+            />
           </td>
           <td>
             {isEditable && (
