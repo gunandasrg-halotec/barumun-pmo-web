@@ -601,6 +601,19 @@ function ProgressCreateForm({
         </div>
       )}
 
+      {isOverBudget && (
+        <div className="danger-box" style={{ fontSize: 13, marginBottom: 12 }}>
+          ⚠ Total estimasi ({formatNumber(realVolume + remainVol)} {preview?.unit}) melebihi volume rencana
+          ({formatNumber(planVolume)} {preview?.unit}). Catatan lapangan <strong>wajib diisi</strong> dan
+          Direktur Utama akan mendapat notifikasi.
+        </div>
+      )}
+
+      <div className="field">
+        <label>Biaya Realisasi (Rp) <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— opsional</span></label>
+        <input type="number" value={form.actual_cost} onChange={e => setForm(p => ({ ...p, actual_cost: e.target.value }))} step="1" min="0" placeholder="0" />
+      </div>
+
       {preview && (
         <div className="field">
           <label>
@@ -617,19 +630,6 @@ function ProgressCreateForm({
           />
         </div>
       )}
-
-      {isOverBudget && (
-        <div className="danger-box" style={{ fontSize: 13, marginBottom: 12 }}>
-          ⚠ Total estimasi ({formatNumber(realVolume + remainVol)} {preview?.unit}) melebihi volume rencana
-          ({formatNumber(planVolume)} {preview?.unit}). Catatan lapangan <strong>wajib diisi</strong> dan
-          Direktur Utama akan mendapat notifikasi.
-        </div>
-      )}
-
-      <div className="field">
-        <label>Biaya Realisasi (Rp) <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— opsional</span></label>
-        <input type="number" value={form.actual_cost} onChange={e => setForm(p => ({ ...p, actual_cost: e.target.value }))} step="1" min="0" placeholder="0" />
-      </div>
 
       <div className="field">
         <label>
