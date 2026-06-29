@@ -14,7 +14,7 @@ const MAX_SUBMISSIONS = 3;
 
 export default function WbdPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { canManageWbd, canApproveWbd } = useAuth();
+  const { canManageWbd, canApproveWbd, isDireksi } = useAuth();
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab]             = useState<'tree' | 'versions'>('tree');
@@ -26,6 +26,7 @@ export default function WbdPage() {
   const [showNewVersionModal, setShowNewVersionModal] = useState(false);
   const [copyFromVersionId, setCopyFromVersionId]     = useState<string>('');
   const [showSubmitWarning, setShowSubmitWarning]     = useState(false);
+  const [showResetModal, setShowResetModal]           = useState(false);
 
   const projectQ  = useQuery({ queryKey: ['project', projectId],        queryFn: () => projectService.get(projectId!) });
   const versionsQ = useQuery({ queryKey: ['wbd-versions', projectId],   queryFn: () => wbdService.listVersions(projectId!), enabled: !!projectId });
@@ -45,6 +46,15 @@ export default function WbdPage() {
     mutationFn: ({ id, reason }: { id: string; reason: string }) => wbdService.rejectVersion(id, reason),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['wbd-versions', projectId] }); setRejectModal(null); setRejectReason(''); },
   });
+  const resetMut = useMutation({
+    mutationFn: () => wbdService.resetSubmissions(projectId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wbd-versions', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      setShowResetModal(false);
+      setSelectedVersion(null);
+    },
+  });
 
   const project = (projectQ.data as any)?.data;
   const versions: WbdVersion[] = (versionsQ.data as any)?.data ?? [];
@@ -57,13 +67,18 @@ export default function WbdPage() {
   const isDraft   = selectedVersion?.status === 'DRAFT';
   const isPending = selectedVersion?.status === 'PENDING_DIRECTOR_APPROVAL';
 
-  // Hitung total submission: versi yang pernah disubmit (bukan DRAFT)
-  const totalSubmissions = versions.filter(v =>
-    ['PENDING_DIRECTOR_APPROVAL', 'FINAL_APPROVED', 'REJECTED', 'SUPERSEDED'].includes(v.status)
-  ).length;
+  // Hitung total submission setelah reset terakhir (jika ada)
+  const submissionsResetAt = project?.submissions_reset_at ?? null;
+  const SUBMITTED_STATUSES = ['PENDING_DIRECTOR_APPROVAL', 'FINAL_APPROVED', 'REJECTED', 'SUPERSEDED'];
+  const totalSubmissions = versions.filter(v => {
+    if (!SUBMITTED_STATUSES.includes(v.status)) return false;
+    if (submissionsResetAt && v.submitted_at && v.submitted_at <= submissionsResetAt) return false;
+    return true;
+  }).length;
   const submissionsLeft = MAX_SUBMISSIONS - totalSubmissions;
   const isLastChance    = submissionsLeft === 1;
   const isBlocked       = submissionsLeft <= 0;
+  const hasPendingVersions = versions.some(v => v.status === 'PENDING_DIRECTOR_APPROVAL');
 
   // API returns nodes as a nested tree (GROUP -> children: [ITEM...]).
   // Flatten to the flat array that WbdTree / summary logic expect.
@@ -157,6 +172,11 @@ export default function WbdPage() {
               <button className="btn" onClick={() => approveMut.mutate(selectedVersion.id)} disabled={approveMut.isPending}>✓ Setujui</button>
               <button className="btn danger" onClick={() => setRejectModal(selectedVersion.id)}>✕ Tolak</button>
             </>
+          )}
+          {isDireksi() && hasPendingVersions && (
+            <button className="btn secondary" onClick={() => setShowResetModal(true)}>
+              ↺ Reset Pengajuan
+            </button>
           )}
         </div>
       </div>
@@ -351,6 +371,47 @@ export default function WbdPage() {
               <div className="cluster">
                 <button className="btn secondary" onClick={() => setRejectModal(null)}>Batal</button>
                 <button className="btn danger" disabled={!rejectReason.trim() || rejectMut.isPending} onClick={() => rejectMut.mutate({ id: rejectModal, reason: rejectReason })}>Tolak WBD</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Reset Pengajuan */}
+      {showResetModal && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowResetModal(false); }}>
+          <div className="modal-window" style={{ maxWidth: 520 }}>
+            <div className="modal-head">
+              <div>
+                <h4>Reset Pengajuan WBD</h4>
+                <p>Kembalikan hak pengajuan WBD kepada Project Manager.</p>
+              </div>
+              <button className="modal-close" onClick={() => setShowResetModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="danger-box">
+                <strong>Tindakan ini akan:</strong>
+                <ul style={{ margin: '8px 0 0 16px', padding: 0, fontSize: 13 }}>
+                  <li>Mengubah semua WBD berstatus <strong>Menunggu Direksi</strong> kembali ke <strong>DRAFT</strong></li>
+                  <li>Mereset hitungan pengajuan ke 0 sehingga PM dapat mengajukan 3x lagi</li>
+                  <li>WBD berstatus lain (Ditolak, Disetujui, Superseded) tidak terpengaruh</li>
+                </ul>
+              </div>
+              {resetMut.isError && (
+                <div className="error-state" style={{ marginTop: 12 }}>{extractError(resetMut.error)}</div>
+              )}
+            </div>
+            <div className="modal-foot">
+              <div />
+              <div className="cluster">
+                <button className="btn secondary" onClick={() => setShowResetModal(false)}>Batal</button>
+                <button
+                  className="btn danger"
+                  disabled={resetMut.isPending}
+                  onClick={() => resetMut.mutate()}
+                >
+                  {resetMut.isPending ? 'Mereset...' : 'Ya, Reset Pengajuan'}
+                </button>
               </div>
             </div>
           </div>

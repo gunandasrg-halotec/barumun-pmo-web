@@ -53,6 +53,7 @@ export interface Project {
   description?: string;
   has_active_baseline: boolean;
   active_wbd_version: ActiveWbdVersion | null;
+  submissions_reset_at?: string | null;
   created_by?: { id: string; full_name: string };
   created_at?: string;
   updated_at?: string;

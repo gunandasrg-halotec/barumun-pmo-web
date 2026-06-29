@@ -71,4 +71,9 @@ export const wbdService = {
     const res = await api.delete(`/wbd-node-dependencies/${dependencyId}`);
     return res.data;
   },
+
+  resetSubmissions: async (projectId: string) => {
+    const res = await api.post(`/projects/${projectId}/reset-submissions`);
+    return res.data;
+  },
 };
