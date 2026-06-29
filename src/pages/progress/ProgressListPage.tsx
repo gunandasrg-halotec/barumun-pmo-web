@@ -517,8 +517,16 @@ function ProgressCreateForm({
   }
 
   function handleRemainingCostChange(val: string) {
-    setRemainingCost(val);
+    // Strip all non-numeric characters so the raw value stays a plain number string
+    const raw = val.replace(/[^\d]/g, '');
+    setRemainingCost(raw);
     setRemainingCostOverridden(true);
+  }
+
+  function formatRemainingCostDisplay(val: string): string {
+    const n = Number(val);
+    if (!val || isNaN(n)) return '';
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -621,18 +629,11 @@ function ProgressCreateForm({
             <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 11 }}> — auto dari Sisa Volume × Harga Satuan, bisa diubah</span>
           </label>
           <input
-            type="number"
-            value={remainingCost}
+            type="text"
+            value={formatRemainingCostDisplay(remainingCost)}
             onChange={e => handleRemainingCostChange(e.target.value)}
-            step="1"
-            min="0"
-            placeholder={preview.rate != null ? '(otomatis)' : '0'}
+            placeholder={preview.rate != null ? '(otomatis)' : 'Rp 0'}
           />
-          {remainingCost !== '' && (
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-              {formatCurrency(Number(remainingCost) || 0)}
-            </div>
-          )}
         </div>
       )}
 
