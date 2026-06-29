@@ -78,7 +78,6 @@ export default function WbdPage() {
   const submissionsLeft = MAX_SUBMISSIONS - totalSubmissions;
   const isLastChance    = submissionsLeft === 1;
   const isBlocked       = submissionsLeft <= 0;
-  const hasPendingVersions = versions.some(v => v.status === 'PENDING_DIRECTOR_APPROVAL');
 
   // API returns nodes as a nested tree (GROUP -> children: [ITEM...]).
   // Flatten to the flat array that WbdTree / summary logic expect.
@@ -109,6 +108,11 @@ export default function WbdPage() {
           </div>
           <div className="cluster">
             <span className="chip status-ok">Auto hitung aktif</span>
+            {isDireksi() && versions.length > 0 && (
+              <button className="btn secondary" onClick={() => setShowResetModal(true)}>
+                ↺ Reset Pengajuan
+              </button>
+            )}
             {canManageWbd() && (
               <button
                 className="btn"
@@ -172,11 +176,6 @@ export default function WbdPage() {
               <button className="btn" onClick={() => approveMut.mutate(selectedVersion.id)} disabled={approveMut.isPending}>✓ Setujui</button>
               <button className="btn danger" onClick={() => setRejectModal(selectedVersion.id)}>✕ Tolak</button>
             </>
-          )}
-          {isDireksi() && hasPendingVersions && (
-            <button className="btn secondary" onClick={() => setShowResetModal(true)}>
-              ↺ Reset Pengajuan
-            </button>
           )}
         </div>
       </div>
