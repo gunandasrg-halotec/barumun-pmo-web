@@ -628,6 +628,11 @@ function ProgressCreateForm({
             min="0"
             placeholder={preview.rate != null ? '(otomatis)' : '0'}
           />
+          {remainingCost !== '' && (
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+              {formatCurrency(Number(remainingCost) || 0)}
+            </div>
+          )}
         </div>
       )}
 
