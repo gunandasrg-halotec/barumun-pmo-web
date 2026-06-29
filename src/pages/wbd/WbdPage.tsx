@@ -17,9 +17,9 @@ export default function WbdPage() {
   const { canManageWbd, canApproveWbd, isDireksi } = useAuth();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab]             = useState<'tree' | 'versions'>('tree');
-  const [selectedVersion, setSelectedVersion] = useState<WbdVersion | null>(null);
-  const [showAddNode, setShowAddNode]         = useState(false);
+  const [activeTab, setActiveTab]               = useState<'tree' | 'versions'>('tree');
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+  const [showAddNode, setShowAddNode]           = useState(false);
   const [parentNode, setParentNode]           = useState<WbdNode | null>(null);
   const [rejectModal, setRejectModal]         = useState<string | null>(null);
   const [rejectReason, setRejectReason]       = useState('');
@@ -30,13 +30,13 @@ export default function WbdPage() {
 
   const projectQ  = useQuery({ queryKey: ['project', projectId],        queryFn: () => projectService.get(projectId!) });
   const versionsQ = useQuery({ queryKey: ['wbd-versions', projectId],   queryFn: () => wbdService.listVersions(projectId!), enabled: !!projectId });
-  const nodesQ    = useQuery({ queryKey: ['wbd-nodes', selectedVersion?.id], queryFn: () => wbdService.getNodes(selectedVersion!.id), enabled: !!selectedVersion?.id });
+  const nodesQ    = useQuery({ queryKey: ['wbd-nodes', selectedVersionId], queryFn: () => wbdService.getNodes(selectedVersionId!), enabled: !!selectedVersionId });
 
   const createVersionMut = useMutation({
     mutationFn: (basedOn?: string) => wbdService.createVersion(projectId!, basedOn),
     onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['wbd-versions', projectId] });
-      setSelectedVersion(res.data);
+      setSelectedVersionId(res.data?.id ?? null);
       setActiveTab('tree');
     },
   });
@@ -52,7 +52,7 @@ export default function WbdPage() {
       queryClient.invalidateQueries({ queryKey: ['wbd-versions', projectId] });
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
       setShowResetModal(false);
-      setSelectedVersion(null);
+      setSelectedVersionId(null);
     },
   });
 
@@ -60,9 +60,11 @@ export default function WbdPage() {
   const versions: WbdVersion[] = (versionsQ.data as any)?.data ?? [];
   const activeVersion = versions.find(v => v.is_active) ?? null;
 
-  if (!selectedVersion && versions.length > 0) {
-    setSelectedVersion(activeVersion ?? versions[0]);
+  // Derive selectedVersion always from the fresh versions array so status is never stale
+  if (!selectedVersionId && versions.length > 0) {
+    setSelectedVersionId((activeVersion ?? versions[0]).id);
   }
+  const selectedVersion = versions.find(v => v.id === selectedVersionId) ?? null;
 
   const isDraft   = selectedVersion?.status === 'DRAFT';
   const isPending = selectedVersion?.status === 'PENDING_DIRECTOR_APPROVAL';
@@ -147,7 +149,7 @@ export default function WbdPage() {
           <button className={`btn ${activeTab === 'versions' ? '' : 'secondary'}`} onClick={() => setActiveTab('versions')}>Riwayat Versi</button>
           <div className="stretch" />
           {activeTab === 'tree' && versions.length > 0 && (
-            <select value={selectedVersion?.id ?? ''} onChange={e => { const v = versions.find(v => v.id === e.target.value); setSelectedVersion(v ?? null); }}>
+            <select value={selectedVersionId ?? ''} onChange={e => setSelectedVersionId(e.target.value)}>
               {versions.map(v => (
                 <option key={v.id} value={v.id}>Version {v.version_number} — {v.status}{v.is_active ? ' ✓ Aktif' : ''}</option>
               ))}
@@ -186,7 +188,7 @@ export default function WbdPage() {
           versions={versions}
           isLoading={versionsQ.isLoading}
           selectedVersionId={selectedVersion?.id}
-          onSelect={v => { setSelectedVersion(v); setActiveTab('tree'); }}
+          onSelect={v => { setSelectedVersionId(v.id); setActiveTab('tree'); }}
           onSubmit={id => submitMut.mutate(id)}
           onApprove={id => approveMut.mutate(id)}
           onReject={id => setRejectModal(id)}
