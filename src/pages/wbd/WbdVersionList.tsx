@@ -61,7 +61,7 @@ export default function WbdVersionList({
                   <td style={{ fontSize: 12 }}>{v.submitted_at ? formatDateTime(v.submitted_at) : '—'}</td>
                   <td>{v.approved_by?.full_name ?? '—'}</td>
                   <td style={{ fontSize: 12 }}>{v.approved_at ? formatDateTime(v.approved_at) : '—'}</td>
-                  <td style={{ fontSize: 12, color: 'var(--danger)', maxWidth: 200 }}>
+                  <td style={{ fontSize: 12, color: 'var(--danger)', maxWidth: 200, whiteSpace: 'normal', wordBreak: 'break-word' }}>
                     {v.rejection_reason ?? '—'}
                   </td>
                   <td>
