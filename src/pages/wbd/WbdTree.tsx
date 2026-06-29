@@ -202,6 +202,32 @@ function computeEndDate(startDate: string | null, durationDays: number | null): 
   return d.toISOString().slice(0, 10);
 }
 
+// Display-only: derive a GROUP's effective start/end dates from its descendant ITEM nodes.
+// Earliest child start_date and latest child end_date. Not persisted to the backend.
+function computeGroupDateRange(group: WbdNode, allNodes: WbdNode[]): { start: string | null; end: string | null } {
+  const children = allNodes.filter(n => n.parent_node_id === group.id);
+  let minStart: string | null = null;
+  let maxEnd: string | null = null;
+
+  for (const child of children) {
+    let childStart: string | null;
+    let childEnd: string | null;
+    if (child.node_type === 'GROUP') {
+      const range = computeGroupDateRange(child, allNodes);
+      childStart = range.start;
+      childEnd = range.end;
+    } else {
+      childStart = child.start_date ?? null;
+      childEnd = childStart ? computeEndDate(childStart, child.duration_days ?? null) : null;
+      if (childEnd === '—') childEnd = null;
+    }
+    if (childStart && (!minStart || childStart < minStart)) minStart = childStart;
+    if (childEnd && (!maxEnd || childEnd > maxEnd)) maxEnd = childEnd;
+  }
+
+  return { start: minStart, end: maxEnd };
+}
+
 // ─── Edit Form ───────────────────────────────────────────────────────────────
 
 function EditNodeForm({ node, allNodes, onClose, onSaved }: { node: WbdNode; allNodes: WbdNode[]; onClose: () => void; onSaved: () => void }) {
@@ -369,6 +395,10 @@ export default function WbdTree({ nodes, isEditable, onAddChild, onRefresh }: Pr
     const isColl     = collapsed.has(node.id);
     const indent     = depth > 0 ? `${depth * 18}px` : undefined;
     const endDate    = computeEndDate(node.start_date ?? null, node.duration_days ?? null);
+    const groupRange = isGroup ? computeGroupDateRange(node, nodes) : null;
+    const groupDurationDays = groupRange?.start && groupRange?.end
+      ? Math.round((new Date(groupRange.end + 'T00:00:00').getTime() - new Date(groupRange.start + 'T00:00:00').getTime()) / 86400000) + 1
+      : null;
     const st         = STATUS_MAP[node.status ?? ''] ?? { label: node.status ?? '—', cls: 'planned' };
     const subtotal   = isGroup ? children.reduce((s, c) => s + Number(c.planned_cost ?? 0), 0) : 0;
     const compPct    = isGroup && totalCost > 0 ? ((subtotal / totalCost) * 100).toFixed(2) : null;
@@ -377,17 +407,17 @@ export default function WbdTree({ nodes, isEditable, onAddChild, onRefresh }: Pr
       <>
         <tr key={node.id} className={isGroup ? 'group-row' : depth >= 2 ? 'indent-2' : 'indent-1'}>
           <td>{node.code}</td>
-          <td style={{ paddingLeft: indent }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <td style={{ paddingLeft: indent, maxWidth: 260 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
               {hasChildren && (
                 <button
                   onClick={() => toggle(node.id)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, fontSize: 11, opacity: 0.8 }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, fontSize: 11, opacity: 0.8, marginTop: 2, flexShrink: 0 }}
                 >
                   {isColl ? '▶' : '▼'}
                 </button>
               )}
-              {node.name}
+              <span style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{node.name}</span>
             </div>
           </td>
           <td>{node.unit ?? '—'}</td>
@@ -399,9 +429,9 @@ export default function WbdTree({ nodes, isEditable, onAddChild, onRefresh }: Pr
           </td>
           <td>{compPct ? `${compPct}%` : (node.component_percent != null ? `${Number(node.component_percent).toFixed(2)}%` : '—')}</td>
           <td>{node.total_percent != null ? `${Number(node.total_percent).toFixed(2)}%` : (compPct ? `${((subtotal/totalCost)*100).toFixed(2)}%` : '—')}</td>
-          <td>{node.start_date ? formatDate(node.start_date) : '—'}</td>
-          <td>{node.duration_days ?? '—'}</td>
-          <td>{endDate !== '—' ? formatDate(endDate) : '—'}</td>
+          <td>{isGroup ? (groupRange?.start ? formatDate(groupRange.start) : '—') : (node.start_date ? formatDate(node.start_date) : '—')}</td>
+          <td>{isGroup ? (groupDurationDays ?? '—') : (node.duration_days ?? '—')}</td>
+          <td>{isGroup ? (groupRange?.end ? formatDate(groupRange.end) : '—') : (endDate !== '—' ? formatDate(endDate) : '—')}</td>
           <td><span className={`badge ${st.cls}`}>{st.label}</span></td>
           <td>
             <DependencyPanel
