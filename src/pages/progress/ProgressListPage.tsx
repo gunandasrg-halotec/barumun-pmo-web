@@ -24,9 +24,17 @@ const STATUS_FILTERS = [
   { value: 'REJECTED',            label: 'Ditolak'        },
 ];
 
-function flattenNodes(nodes: WbdNode[], prefix = ''): { id: string; label: string; unit: string; volume: number | null; rate: number | null }[] {
+function flattenNodes(nodes: WbdNode[], prefix = ''): { id: string; label: string; unit: string; volume: number | null; rate: number | null; latest_remaining_volume: number | null; latest_remaining_cost: number | null }[] {
   return nodes.flatMap(n => [
-    ...(n.node_type === 'ITEM' ? [{ id: n.id, label: `${prefix}${n.code} — ${n.name}`, unit: n.unit ?? '', volume: n.volume ?? null, rate: n.rate ?? null }] : []),
+    ...(n.node_type === 'ITEM' ? [{
+      id: n.id,
+      label: `${prefix}${n.code} — ${n.name}`,
+      unit: n.unit ?? '',
+      volume: n.volume ?? null,
+      rate: n.rate ?? null,
+      latest_remaining_volume: (n as any).latest_remaining_volume ?? null,
+      latest_remaining_cost: (n as any).latest_remaining_cost ?? null,
+    }] : []),
     ...(n.children?.length ? flattenNodes(n.children, prefix + '  ') : []),
   ]);
 }
@@ -467,7 +475,7 @@ export default function ProgressListPage() {
 
 function ProgressCreateForm({
   projectId, itemNodes, onSuccess, onCancel,
-}: { projectId: string; itemNodes: { id: string; label: string; unit: string; volume: number | null; rate: number | null }[]; onSuccess: () => void; onCancel: () => void }) {
+}: { projectId: string; itemNodes: { id: string; label: string; unit: string; volume: number | null; rate: number | null; latest_remaining_volume: number | null; latest_remaining_cost: number | null }[]; onSuccess: () => void; onCancel: () => void }) {
   const [form, setForm]             = useState({ wbd_node_id: '', progress_date: '', progress_volume: '', actual_cost: '', note: '' });
   const [remainingVolume, setRemainingVolume]   = useState('');
   const [remainingCost, setRemainingCost]       = useState('');
@@ -491,9 +499,15 @@ function ProgressCreateForm({
     setPreview(node ? { label: node.label, unit: node.unit, volume: node.volume, rate: node.rate } : null);
     setRemainingOverridden(false);
     setRemainingCostOverridden(false);
-    const newRemVol = node?.volume != null ? Math.max(0, node.volume - realVolume) : null;
+    // Use latest_remaining_volume from last progress entry if exists, else fall back to planned volume
+    const newRemVol = node != null
+      ? (node.latest_remaining_volume != null ? node.latest_remaining_volume : (node.volume ?? 0))
+      : null;
     setRemainingVolume(newRemVol != null ? String(newRemVol) : '');
-    setRemainingCost(newRemVol != null && node?.rate != null ? String(Math.round(newRemVol * node.rate)) : '');
+    const newRemCost = node != null
+      ? (node.latest_remaining_cost != null ? node.latest_remaining_cost : (newRemVol != null && node.rate != null ? Math.round(newRemVol * node.rate) : 0))
+      : null;
+    setRemainingCost(newRemCost != null ? String(newRemCost) : '');
   }
 
   function handleProgressVolumeChange(val: string) {
