@@ -312,7 +312,7 @@ function EditNodeForm({ node, allNodes, onClose, onSaved }: { node: WbdNode; all
             </div>
             <div className="form-grid field">
               <label>Harga Satuan <span className="required">*</span></label>
-              <input type="number" value={form.rate} onChange={e => set('rate', e.target.value)} step="1" min="0" required />
+              <input type="number" value={form.rate} onChange={e => set('rate', e.target.value)} step="0.01" min="0" required />
             </div>
           </div>
 
