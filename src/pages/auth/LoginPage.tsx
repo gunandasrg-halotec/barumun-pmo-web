@@ -3,15 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { extractError } from "../../utils/format";
 import InputPassword from "@/components/ui/InputPassword";
-import { ROLES } from "../../types";
-
-const DEMO_ACCOUNTS = [
-  ["pm@company.com", ROLES.PROJECT_MANAGER],
-  ["direksi@company.com", ROLES.DIREKSI],
-  ["finance@company.com", ROLES.FINANCE],
-  ["adminproyek@company.com", ROLES.ADMIN_PROYEK],
-  ["admin@company.com", ROLES.ADMINISTRATOR_SISTEM],
-];
 
 export default function LoginPage() {
   const { login, isAuthenticated } = useAuth();
@@ -97,46 +88,6 @@ export default function LoginPage() {
             {loading ? "Memproses..." : "Masuk"}
           </button>
         </form>
-
-        {/* Demo accounts */}
-        <div className="panel-block" style={{ marginTop: 20 }}>
-          <h4 style={{ fontSize: 13, marginBottom: 10 }}>Akun Demo</h4>
-          <div style={{ display: "grid", gap: 6 }}>
-            {DEMO_ACCOUNTS.map(([em, role]) => (
-              <div
-                key={em}
-                style={{
-                  cursor: "pointer",
-                  fontSize: 12,
-                  padding: "6px 10px",
-                  borderRadius: 10,
-                  background: "rgba(220,234,213,0.3)",
-                }}
-                onClick={() => {
-                  setEmail(em);
-                  setPassword("password123");
-                }}
-              >
-                <span style={{ color: "var(--green-700)", fontWeight: 600 }}>
-                  {em}
-                </span>
-                <span style={{ color: "var(--muted)", marginLeft: 6 }}>
-                  — {role}
-                </span>
-              </div>
-            ))}
-            <p
-              style={{
-                fontSize: 11,
-                color: "var(--muted)",
-                marginTop: 4,
-                marginBottom: 0,
-              }}
-            >
-              Password semua akun: <strong>password123</strong>
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );
