@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { NavLink, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
@@ -96,7 +97,7 @@ function NotificationBell() {
         )}
       </button>
 
-      {open && (
+      {open && createPortal(
         <div style={{
           position: 'fixed',
           top: panelPos.top,
@@ -180,7 +181,8 @@ function NotificationBell() {
               ))
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
