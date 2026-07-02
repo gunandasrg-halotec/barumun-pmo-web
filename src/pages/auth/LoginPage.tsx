@@ -3,13 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { extractError } from "../../utils/format";
 import InputPassword from "@/components/ui/InputPassword";
+import { ROLES } from "../../types";
 
 const DEMO_ACCOUNTS = [
-  ["pm@company.com", "Project Manager"],
-  ["direksi@company.com", "Direksi"],
-  ["finance@company.com", "Finance"],
-  ["adminproyek@company.com", "Admin Proyek"],
-  ["admin@company.com", "Administrator Sistem"],
+  ["pm@company.com", ROLES.PROJECT_MANAGER],
+  ["direksi@company.com", ROLES.DIREKSI],
+  ["finance@company.com", ROLES.FINANCE],
+  ["adminproyek@company.com", ROLES.ADMIN_PROYEK],
+  ["admin@company.com", ROLES.ADMINISTRATOR_SISTEM],
 ];
 
 export default function LoginPage() {

@@ -8,6 +8,7 @@ import { projectService } from '../../services/projectService';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency, formatDate, formatDateTime, formatNumber, extractError } from '../../utils/format';
 import type { WbdNode } from '../../types';
+import { ROLES } from '../../types';
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   PENDING_PM_APPROVAL:        { label: 'Menunggu PM',       cls: 'delay'   },
@@ -401,7 +402,7 @@ export default function ProgressListPage() {
             <h4 style={{ margin: '0 0 10px', fontSize: 14, color: 'var(--green-800)' }}>Logika Status Otomatis</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 }}>
               {[
-                { cls: 'delay',   label: 'Menunggu PM',       desc: 'Progress baru diinput oleh Admin Proyek, menunggu verifikasi Project Manager.' },
+                { cls: 'delay',   label: 'Menunggu PM',       desc: `Progress baru diinput oleh Admin Proyek, menunggu verifikasi ${ROLES.PROJECT_MANAGER}.` },
                 { cls: 'planned', label: 'Menunggu Direktur',  desc: 'Volume melebihi rencana — wajib persetujuan Direktur sebelum dicatat.' },
                 { cls: 'running', label: 'Auto Disetujui',     desc: 'Diinput oleh PM dan volume tidak melebihi rencana, langsung masuk S-Curve.' },
                 { cls: 'done',    label: 'Disetujui',          desc: 'Sudah diverifikasi dan disetujui, masuk ke kalkulasi S-Curve.' },

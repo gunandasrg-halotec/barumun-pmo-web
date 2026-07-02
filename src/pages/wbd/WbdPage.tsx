@@ -9,6 +9,7 @@ import WbdVersionList from './WbdVersionList';
 import WbdNodeForm from './WbdNodeForm';
 import { formatCurrency, extractError } from '../../utils/format';
 import type { WbdNode, WbdVersion } from '../../types';
+import { ROLES } from '../../types';
 
 const MAX_SUBMISSIONS = 3;
 
@@ -385,7 +386,7 @@ export default function WbdPage() {
             <div className="modal-head">
               <div>
                 <h4>Reset Pengajuan WBD</h4>
-                <p>Kembalikan hak pengajuan WBD kepada Project Manager.</p>
+                <p>Kembalikan hak pengajuan WBD kepada {ROLES.PROJECT_MANAGER}.</p>
               </div>
               <button className="modal-close" onClick={() => setShowResetModal(false)}>×</button>
             </div>

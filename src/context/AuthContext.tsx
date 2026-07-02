@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { authService } from "../services/authService";
-import type { User, ROLES } from "../types";
+import { ROLES } from "../types";
+import type { User } from "../types";
 
 interface AuthContextType {
   user: User | null;
@@ -72,11 +73,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const hasRole = (role: string) => user?.role?.name === role;
-  const isAdminSistem = () => hasRole("Administrator Sistem");
-  const isProjectManager = () => hasRole("Project Manager");
-  const isDireksi = () => hasRole("Direksi");
-  const isFinance = () => hasRole("Finance");
-  const isAdminProyek = () => hasRole("Admin Proyek");
+  const isAdminSistem = () => hasRole(ROLES.ADMINISTRATOR_SISTEM);
+  const isProjectManager = () => hasRole(ROLES.PROJECT_MANAGER);
+  const isDireksi = () => hasRole(ROLES.DIREKSI);
+  const isFinance = () => hasRole(ROLES.FINANCE);
+  const isAdminProyek = () => hasRole(ROLES.ADMIN_PROYEK);
 
   const canInputProgress = () => isProjectManager() || isAdminProyek();
   const canInputCost = () => isFinance() || isAdminProyek();

@@ -330,7 +330,7 @@ export interface PaginatedResponse<T> {
 
 export const ROLES = {
   ADMINISTRATOR_SISTEM: "Administrator Sistem",
-  PROJECT_MANAGER: "Project Manager",
+  PROJECT_MANAGER: "Manajer Kebun",
   DIREKSI: "Direksi",
   FINANCE: "Finance",
   ADMIN_PROYEK: "Admin Proyek",

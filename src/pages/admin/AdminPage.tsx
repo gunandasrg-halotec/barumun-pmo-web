@@ -5,38 +5,38 @@ import { useAuth } from "../../context/AuthContext";
 import { formatDate, formatDateTime, extractError } from "../../utils/format";
 import InputPassword from "@/components/ui/InputPassword";
 import ProfilePage from "./ProfilePage";
-import { IRole } from "@/types";
+import { IRole, ROLES as ROLE_NAMES } from "@/types";
 import { authService } from "@/services/authService";
 import { fileService } from "@/services/fileService";
 
 const ROLES: IRole[] = [
   {
     value: "ADMINISTRATOR_SISTEM",
-    label: "Administrator Sistem",
+    label: ROLE_NAMES.ADMINISTRATOR_SISTEM,
     cls: "done",
     desc: "Akses penuh: kelola user, semua proyek, semua modul.",
   },
   {
     value: "PROJECT_MANAGER",
-    label: "Project Manager",
+    label: ROLE_NAMES.PROJECT_MANAGER,
     cls: "running",
     desc: "Kelola WBD, approve progress, generate laporan.",
   },
   {
     value: "DIREKSI",
-    label: "Direksi",
+    label: ROLE_NAMES.DIREKSI,
     cls: "done",
     desc: "Approve WBD baseline, akses executive dashboard.",
   },
   {
     value: "FINANCE",
-    label: "Finance",
+    label: ROLE_NAMES.FINANCE,
     cls: "running",
     desc: "Review biaya, akses cost analysis dan laporan keuangan.",
   },
   {
     value: "ADMIN_PROYEK",
-    label: "Admin Proyek",
+    label: ROLE_NAMES.ADMIN_PROYEK,
     cls: "planned",
     desc: "Input progress lapangan, upload dokumen.",
   },
