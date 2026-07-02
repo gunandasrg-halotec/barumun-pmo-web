@@ -212,7 +212,7 @@ export default function ProgressListPage() {
                     const costPlan = Number(entry.wbd_node?.planned_cost ?? 0);
                     const costReal = Number(entry.actual_cost ?? 0);
                     const costSisa = costPlan - costReal;
-                    const isOver   = costReal > costPlan && costPlan > 0;
+                    const isOver   = Math.round(costReal) > Math.round(costPlan) && costPlan > 0;
                     const pct      = volPlan > 0 ? Math.min(100, Math.round((volReal / volPlan) * 100)) : 0;
 
                     return (
