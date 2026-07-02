@@ -25,6 +25,7 @@ function NavBtn({ to, label, sub }: NavItem) {
 function NotificationBell() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [panelPos, setPanelPos] = useState({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
 
   const { data } = useQuery({
@@ -61,7 +62,13 @@ function NotificationBell() {
   return (
     <div ref={ref} style={{ position: 'relative', marginBottom: 8 }}>
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={() => {
+          if (!open && ref.current) {
+            const rect = ref.current.getBoundingClientRect();
+            setPanelPos({ top: rect.top, left: rect.right + 8 });
+          }
+          setOpen(v => !v);
+        }}
         className="nav-btn"
         style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}
       >
@@ -91,16 +98,15 @@ function NotificationBell() {
 
       {open && (
         <div style={{
-          position: 'absolute',
-          left: '100%',
-          top: 0,
-          marginLeft: 8,
+          position: 'fixed',
+          top: panelPos.top,
+          left: panelPos.left,
           width: 340,
           background: 'var(--surface, #fff)',
           border: '1px solid var(--line)',
           borderRadius: 12,
-          boxShadow: '0 8px 24px rgba(0,0,0,.15)',
-          zIndex: 1000,
+          boxShadow: '0 8px 32px rgba(0,0,0,.2)',
+          zIndex: 99999,
           maxHeight: 480,
           display: 'flex',
           flexDirection: 'column',

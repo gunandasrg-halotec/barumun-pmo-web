@@ -12,9 +12,17 @@ export interface ProgressFilters {
 
 export const progressService = {
   list: async (projectId: string, filters: ProgressFilters = {}) => {
+    const { status, date_from, date_to, wbd_node_id, page, limit } = filters;
+    const params: Record<string, any> = {};
+    if (status)      params['filter[status]']       = status;
+    if (date_from)   params['filter[date_from]']    = date_from;
+    if (date_to)     params['filter[date_to]']      = date_to;
+    if (wbd_node_id) params['filter[wbd_node_id]']  = wbd_node_id;
+    if (page)        params['page']                 = page;
+    if (limit)       params['per-page']             = limit;
     const res = await api.get<PaginatedResponse<ProgressEntry>>(
       `/projects/${projectId}/progress-entries`,
-      { params: filters }
+      { params }
     );
     return res.data;
   },
