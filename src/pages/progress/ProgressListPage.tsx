@@ -10,18 +10,20 @@ import { formatCurrency, formatDate, formatDateTime, formatNumber, extractError 
 import type { WbdNode } from '../../types';
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  PENDING_PM_APPROVAL: { label: 'Menunggu PM',   cls: 'delay'   },
-  AUTO_APPROVED:       { label: 'Auto Disetujui', cls: 'running' },
-  APPROVED:            { label: 'Disetujui',      cls: 'done'    },
-  REJECTED:            { label: 'Ditolak',        cls: 'delay'   },
+  PENDING_PM_APPROVAL:        { label: 'Menunggu PM',       cls: 'delay'   },
+  PENDING_DIRECTOR_APPROVAL:  { label: 'Menunggu Direktur', cls: 'planned' },
+  AUTO_APPROVED:              { label: 'Auto Disetujui',    cls: 'running' },
+  APPROVED:                   { label: 'Disetujui',         cls: 'done'    },
+  REJECTED:                   { label: 'Ditolak',           cls: 'delay'   },
 };
 
 const STATUS_FILTERS = [
-  { value: '',                    label: 'Semua Status'   },
-  { value: 'PENDING_PM_APPROVAL', label: 'Menunggu PM'    },
-  { value: 'AUTO_APPROVED',       label: 'Auto Disetujui' },
-  { value: 'APPROVED',            label: 'Disetujui'      },
-  { value: 'REJECTED',            label: 'Ditolak'        },
+  { value: '',                           label: 'Semua Status'        },
+  { value: 'PENDING_PM_APPROVAL',        label: 'Menunggu PM'         },
+  { value: 'PENDING_DIRECTOR_APPROVAL',  label: 'Menunggu Direktur'   },
+  { value: 'AUTO_APPROVED',             label: 'Auto Disetujui'      },
+  { value: 'APPROVED',                   label: 'Disetujui'           },
+  { value: 'REJECTED',                   label: 'Ditolak'             },
 ];
 
 function flattenNodes(nodes: WbdNode[], prefix = ''): { id: string; label: string; unit: string; volume: number | null; rate: number | null; latest_remaining_volume: number | null; latest_remaining_cost: number | null }[] {
@@ -41,7 +43,7 @@ function flattenNodes(nodes: WbdNode[], prefix = ''): { id: string; label: strin
 
 export default function ProgressListPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { canInputProgress, canApproveProgress } = useAuth();
+  const { canInputProgress, canApproveProgress, isDireksi } = useAuth();
   const queryClient = useQueryClient();
 
   const [statusFilter, setStatusFilter] = useState('');
@@ -91,7 +93,7 @@ export default function ProgressListPage() {
   const totalVolReal  = entries.reduce((s: number, e: any) => s + Number(e.progress_volume ?? 0), 0);
   const totalCostReal = entries.reduce((s: number, e: any) => s + Number(e.actual_cost ?? 0), 0);
   const updatedToday  = entries.filter((e: any) => formatDate(e.progress_date) === formatDate(new Date().toISOString())).length;
-  const pendingCount  = entries.filter((e: any) => e.status === 'PENDING_PM_APPROVAL').length;
+  const pendingCount  = entries.filter((e: any) => e.status === 'PENDING_PM_APPROVAL' || e.status === 'PENDING_DIRECTOR_APPROVAL').length;
 
   return (
     <div>
@@ -329,6 +331,25 @@ export default function ProgressListPage() {
                                 </button>
                               </>
                             )}
+                            {isDireksi() && entry.status === 'PENDING_DIRECTOR_APPROVAL' && (
+                              <>
+                                <button
+                                  className="chip clickable"
+                                  style={{ color: 'var(--ok)' }}
+                                  onClick={() => approveMut.mutate(entry.id)}
+                                  disabled={approveMut.isPending}
+                                >
+                                  ✓ Setujui
+                                </button>
+                                <button
+                                  className="chip clickable"
+                                  style={{ color: 'var(--danger)' }}
+                                  onClick={() => setRejectModal(entry.id)}
+                                >
+                                  ✕ Tolak
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -380,10 +401,11 @@ export default function ProgressListPage() {
             <h4 style={{ margin: '0 0 10px', fontSize: 14, color: 'var(--green-800)' }}>Logika Status Otomatis</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 }}>
               {[
-                { cls: 'delay',   label: 'Menunggu PM',    desc: 'Progress baru diinput, menunggu verifikasi Project Manager.' },
-                { cls: 'running', label: 'Auto Disetujui', desc: 'Disetujui otomatis jika volume < 5% rencana dan Admin Proyek yang input.' },
-                { cls: 'done',    label: 'Disetujui',      desc: 'PM sudah memverifikasi dan menyetujui realisasi lapangan.' },
-                { cls: 'delay',   label: 'Ditolak',        desc: 'PM menolak — data harus diperbaiki dan diinput ulang.' },
+                { cls: 'delay',   label: 'Menunggu PM',       desc: 'Progress baru diinput oleh Admin Proyek, menunggu verifikasi Project Manager.' },
+                { cls: 'planned', label: 'Menunggu Direktur',  desc: 'Volume melebihi rencana — wajib persetujuan Direktur sebelum dicatat.' },
+                { cls: 'running', label: 'Auto Disetujui',     desc: 'Diinput oleh PM dan volume tidak melebihi rencana, langsung masuk S-Curve.' },
+                { cls: 'done',    label: 'Disetujui',          desc: 'Sudah diverifikasi dan disetujui, masuk ke kalkulasi S-Curve.' },
+                { cls: 'delay',   label: 'Ditolak',            desc: 'Ditolak — data harus diperbaiki dan diinput ulang.' },
               ].map((s, i) => (
                 <div key={i} className="panel-block" style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                   <span className={`badge ${s.cls}`} style={{ marginTop: 1, flexShrink: 0 }}>{s.label}</span>
