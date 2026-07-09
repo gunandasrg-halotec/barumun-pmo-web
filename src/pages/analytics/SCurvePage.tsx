@@ -108,15 +108,22 @@ export default function SCurvePage() {
   const insights:   any[] = scurve.insights      ?? [];
   const deviations: any[] = scurve.deviations    ?? [];
 
+  const todayPeriod = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+
+  // For KPI header: use today's period (plan-to-date vs actual-to-date)
+  // Fall back to last entry if today is after project end
+  const todayVolEntry  = volumeData.findLast((d: any) => d.period <= todayPeriod) ?? volumeData.at(-1);
+  const todayCostEntry = costData.findLast((d: any) => d.period <= todayPeriod)   ?? costData.at(-1);
+
   const latestVol  = volumeData.at(-1);
   const latestCost = costData.at(-1);
 
-  const planVolPct  = latestVol  ? Number(latestVol.plan_cumulative   ?? 0) : 0;
-  const actVolPct   = latestVol  ? Number(latestVol.actual_cumulative ?? 0) : 0;
+  const planVolPct  = todayVolEntry  ? Number(todayVolEntry.plan_cumulative   ?? 0) : 0;
+  const actVolPct   = todayVolEntry  ? Number(todayVolEntry.actual_cumulative ?? 0) : 0;
   const devVolPct   = actVolPct - planVolPct;
 
-  const planCost  = latestCost ? Number(latestCost.plan_cumulative   ?? 0) : 0;
-  const actCost   = latestCost ? Number(latestCost.actual_cumulative ?? 0) : 0;
+  const planCost  = todayCostEntry ? Number(todayCostEntry.plan_cumulative   ?? 0) : 0;
+  const actCost   = todayCostEntry ? Number(todayCostEntry.actual_cumulative ?? 0) : 0;
   const devCost   = actCost - planCost;
 
   return (
