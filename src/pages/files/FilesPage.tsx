@@ -6,6 +6,7 @@ import { useAuth } from "../../context/AuthContext";
 import { formatDate, formatDateTime, extractError } from "../../utils/format";
 import { responseToDownloadLink } from "../../utils/download";
 import { FileResource } from "../../types";
+import { parse } from "exifr";
 const BADGE_CLASSES: Record<string, string> = {
   Kontrak: "done",
   "Foto Lapangan": "running",
@@ -107,7 +108,6 @@ export default function FilesPage() {
 
   useEffect(() => {
     if (previewFile) {
-      console.log("Preview file:", previewFile.original_file_name);
       if (
         ["jpg", "jpeg", "png", "pdf"].includes(
           previewFile.mime_type.split("/")[1],
@@ -345,16 +345,14 @@ export default function FilesPage() {
                 className="panel-block"
                 style={{ textAlign: "center", padding: "40px 0" }}
               >
-                {filePreviewUrl && (
+                {filePreviewUrl ? (
                   <embed
                     src={filePreviewUrl}
                     type={previewFile.mime_type}
                     width="100%"
                     height="400px"
                   />
-                )}
-
-                {!filePreviewUrl && (
+                ) : (
                   <>
                     <div style={{ fontSize: 64, marginBottom: 16 }}>
                       {fileIcon(previewFile.original_file_name ?? "")}
@@ -413,24 +411,49 @@ export default function FilesPage() {
                   <br />
                   <strong>{previewFile.uploaded_by?.full_name ?? "—"}</strong>
                 </div>
-              </div>
-              {previewFile.caption && (
-                <div
-                  className="panel-block"
-                  style={{ marginTop: 14, fontSize: 13, color: "var(--muted)" }}
-                >
-                  <strong
+                {previewFile.caption && (
+                  <div
+                    className="panel-block"
                     style={{
-                      color: "var(--text)",
-                      display: "block",
-                      marginBottom: 4,
+                      marginTop: 14,
+                      fontSize: 13,
+                      color: "var(--muted)",
                     }}
                   >
-                    Caption
-                  </strong>
-                  {previewFile.caption}
-                </div>
-              )}
+                    <strong
+                      style={{
+                        color: "var(--text)",
+                        display: "block",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Caption
+                    </strong>
+                    {previewFile.caption}
+                  </div>
+                )}
+                {previewFile.photo_date && (
+                  <div
+                    className="panel-block"
+                    style={{
+                      marginTop: 14,
+                      fontSize: 13,
+                      color: "var(--muted)",
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: "var(--muted)",
+                      }}
+                    >
+                      Tanggal Foto
+                    </span>
+                    <br />
+                    <strong>{formatDate(previewFile.photo_date)}</strong>
+                  </div>
+                )}
+              </div>
+
               {previewFile.note && (
                 <div
                   className="panel-block"
@@ -620,6 +643,25 @@ function UploadForm({
       setIsLoading(false);
     }
   }
+
+  const setImageCreationTime = async (file: File) => {
+    try {
+      // Pass the local path to the uploaded image
+      const metadata = await parse(file);
+
+      if (metadata && metadata.DateTimeOriginal) {
+        //assuming the photo  was taken in indonesia,
+        //we dont need to check the timezone or gpstimestamp.
+        //just assume the timezone is Asia/Jakarta (WIB)
+        const dateObj = new Date(metadata.DateTimeOriginal);
+        const [yyyyMMdd] = dateObj.toISOString().split("T");
+        setPhotoDate(yyyyMMdd);
+      }
+    } catch (error) {
+      console.error("Error parsing EXIF:", error);
+    }
+  };
+
   useEffect(() => {
     if (file) {
       let content = (
@@ -649,6 +691,9 @@ function UploadForm({
         );
       }
       setPreviewFile(content);
+      if (file.type.startsWith("image/")) {
+        setImageCreationTime(file);
+      }
     } else {
       setPreviewFile(null);
     }
@@ -713,7 +758,7 @@ function UploadForm({
           ))}
         </select>
       </div>
-
+      {photoDate}
       {isPhoto && (
         <>
           <div className="field">
