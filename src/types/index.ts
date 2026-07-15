@@ -337,3 +337,41 @@ export const ROLES = {
 } as const;
 
 export type RoleName = (typeof ROLES)[keyof typeof ROLES];
+
+//  Project File -------------------
+
+// 1. Interface untuk relasi yang opsional (Eloquent loading)
+export interface FileCategoryRelation {
+  id: string; // UUID
+  category_name: string;
+}
+
+export interface UploadedByUserRelation {
+  id: string; // UUID
+  full_name: string;
+}
+
+// 2. Interface Utama untuk FileResource
+export interface FileResource {
+  id: string; // UUID
+  project_id: string; // UUID
+  file_type: FileType;
+  original_file_name: string;
+  mime_type: string;
+  caption: string | null;
+  photo_date: string | null; // Format YYYY-MM-DD
+  note: string | null;
+  related_entity_type: RelatedEntityType | null;
+  related_entity_id: string | null; // UUID
+  file_status: FileStatus;
+  
+  // Menggunakan tanda tanya (?) karena properti ini hanya ada jika relasi di-load (whenLoaded)
+  // Dan bisa bernilai null jika relasi di-load tetapi datanya memang kosong di database
+  file_category?: FileCategoryRelation | null;
+  uploaded_by?: UploadedByUserRelation | null;
+  
+  uploaded_at: string; // ISO 8601 DateTime String (misal: "2026-07-16T03:55:58Z")
+  file_size: number | null; // Bytes
+  download_url: string; // URL string
+  
+}
