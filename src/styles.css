@@ -35,7 +35,8 @@
 body {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   color: var(--text);
-  background: radial-gradient(
+  background:
+    radial-gradient(
       circle at top left,
       rgba(213, 165, 55, 0.12),
       transparent 26%
@@ -45,7 +46,7 @@ body {
   min-height: 100vh;
 }
 
-body::before,
+/* body::before,
 body::after {
   content: "";
   position: fixed;
@@ -67,23 +68,22 @@ body::after {
   right: -90px;
   bottom: -80px;
   background: rgba(95, 154, 103, 0.18);
-}
+} */
 
 /* ── App Shell ─────────────────────────────────────────────────────────────── */
 .app-shell {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 280px minmax(0, 1fr);
+  column-gap: 40px;
+
   min-height: 100vh;
 }
 
 /* ── Sidebar ───────────────────────────────────────────────────────────────── */
 .sidebar {
   padding: 28px 22px;
-  background: linear-gradient(
-      180deg,
-      rgba(23, 51, 37, 0.98),
-      rgba(24, 53, 39, 0.92)
-    ),
+  background:
+    linear-gradient(180deg, rgba(23, 51, 37, 0.98), rgba(24, 53, 39, 0.92)),
     linear-gradient(135deg, rgba(212, 165, 55, 0.12), transparent 40%);
   color: #f4f3ec;
   position: sticky;
@@ -150,7 +150,10 @@ body::after {
   background: rgba(255, 255, 255, 0.04);
   color: #f4f3ec;
   cursor: pointer;
-  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease;
   border: 1px solid transparent;
   text-decoration: none;
   display: block;
@@ -508,9 +511,16 @@ body::after {
 /* ── Tables ────────────────────────────────────────────────────────────────── */
 .table-wrap {
   overflow: auto;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
   border-radius: 22px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.95);
+}
+.table-wrap::-webkit-scrollbar {
+  height: 20px;
+  width: 20px;
 }
 table {
   width: 100%;
@@ -657,11 +667,8 @@ tbody tr:hover {
   overflow: hidden;
   border-radius: var(--radius-xl);
   padding: 22px;
-  background: linear-gradient(
-      135deg,
-      rgba(23, 51, 37, 0.98),
-      rgba(46, 95, 61, 0.92)
-    ),
+  background:
+    linear-gradient(135deg, rgba(23, 51, 37, 0.98), rgba(46, 95, 61, 0.92)),
     linear-gradient(135deg, rgba(212, 165, 55, 0.16), transparent 42%);
   color: #f6f5ef;
   box-shadow: var(--shadow);
@@ -1142,7 +1149,8 @@ tbody tr:hover {
   position: relative;
   border-radius: 20px;
   overflow: hidden;
-  background: linear-gradient(
+  background:
+    linear-gradient(
       180deg,
       rgba(220, 234, 213, 0.35),
       rgba(255, 255, 255, 0.98)
@@ -1334,7 +1342,7 @@ tbody tr:hover {
 .form-grid {
   display: grid;
   /* grid-template-columns: repeat(2, 1fr); */
-  grid-template-columns: minmax(50px,120px) 1fr;
+  grid-template-columns: minmax(50px, 120px) 1fr;
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -1347,11 +1355,11 @@ tbody tr:hover {
   color: var(--muted);
   margin-bottom: 6px;
   font-weight: 900;
-  margin-top:10px;
+  margin-top: 10px;
 }
-.field .required::after{
+.field .required::after {
   content: " *";
-  color: red;  
+  color: red;
 }
 .field input,
 .field select,
@@ -1487,3 +1495,39 @@ select {
   background-position: right 12px center;
   cursor: pointer;
 }
+
+.progress-table {
+  width: 100%;
+  border-collapse: separate; /* Required for sticky borders to render correctly */
+  border-spacing: 0;
+}
+.progress-table tbody tr td {
+  background-color: white;
+}
+.progress-table-col-1 {
+  position: sticky;
+  left: 0; /* Pins directly to the left edge */
+  z-index: 2; /* Keeps it above non-sticky columns */
+}
+
+/* 4. Sticky Logic for Column 2 */
+.progress-table-col-2 {
+  position: sticky;
+  left: 80px; /* Must match the EXACT total width of Column 1 */
+  z-index: 2;
+  /* overflow-x: scroll; */
+}
+
+.progress-table-col-1-width {
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
+  
+}
+.progress-table-col-2-width {
+  width: 300px;
+  min-width: 300px;
+  max-width: 300px;
+  overflow-x: hidden;
+}
+
