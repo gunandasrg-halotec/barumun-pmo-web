@@ -143,11 +143,24 @@ export default function ProgressListPage() {
       map.get(nodeId)!.entries.push(entry);
     }
     const nodeOrder = new Map(itemNodes.map((n, i) => [n.id, i]));
-    return Array.from(map.values()).sort((a, b) => {
-      const ia = nodeOrder.get(a.nodeId) ?? 9999;
-      const ib = nodeOrder.get(b.nodeId) ?? 9999;
-      return ia - ib;
-    });
+    return Array.from(map.values())
+      .sort((a, b) => {
+        const ia = nodeOrder.get(a.nodeId) ?? 9999;
+        const ib = nodeOrder.get(b.nodeId) ?? 9999;
+        return ia - ib;
+      })
+      .map((g) => {
+        const latestRem = g.nodeInfo?.latest_remaining_volume;
+        // Fall back to the latest entry's remaining_volume (API returns entries newest-first)
+        const latestEntryRem = g.entries[0]?.remaining_volume ?? null;
+        const isDone =
+          latestRem != null
+            ? latestRem === 0
+            : latestEntryRem != null
+              ? Number(latestEntryRem) === 0
+              : false;
+        return { ...g, isDone };
+      });
   }, [entries, itemNodes]);
 
   const filteredGroups = useMemo(() => {
@@ -158,22 +171,13 @@ export default function ProgressListPage() {
         const code = (g.wbdNode?.code ?? "").toLowerCase();
         if (!name.includes(q) && !code.includes(q)) return false;
       }
-      if (completionFilter !== "all") {
-        const rem = g.nodeInfo?.latest_remaining_volume;
-        const isDone = rem != null ? rem === 0 : g.entries.some((e) => e.remaining_volume === 0);
-        if (completionFilter === "done" && !isDone) return false;
-        if (completionFilter === "ongoing" && isDone) return false;
-      }
+      if (completionFilter === "done" && !g.isDone) return false;
+      if (completionFilter === "ongoing" && g.isDone) return false;
       return true;
     });
   }, [allGroups, searchQuery, completionFilter]);
 
-  const doneCount = useMemo(() =>
-    allGroups.filter((g) => {
-      const rem = g.nodeInfo?.latest_remaining_volume;
-      return rem != null ? rem === 0 : g.entries.some((e) => e.remaining_volume === 0);
-    }).length,
-  [allGroups]);
+  const doneCount = useMemo(() => allGroups.filter((g) => g.isDone).length, [allGroups]);
 
   function toggleGroup(nodeId: string) {
     setExpandedGroups((prev) => {
@@ -433,7 +437,7 @@ export default function ProgressListPage() {
                     // Use latest_remaining_volume from node if available
                     const latestRem = ni?.latest_remaining_volume;
                     const volSisa = latestRem != null ? latestRem : Math.max(0, volPlan - totalVolReal);
-                    const isGroupDone = volSisa === 0;
+                    const isGroupDone = group.isDone;
                     const pct = volPlan > 0 ? Math.min(100, Math.round((totalVolReal / volPlan) * 100)) : 0;
                     const costSisa = costPlan - totalCostReal;
                     const isOver = Math.round(totalCostReal) > Math.round(costPlan) && costPlan > 0;
