@@ -126,6 +126,12 @@ export default function SCurvePage() {
   const actCost   = todayCostEntry ? Number(todayCostEntry.actual_cumulative ?? 0) : 0;
   const devCost   = actCost - planCost;
 
+  // Percentage for cost: relative to total project planned cost (last data point)
+  const totalPlanCost  = latestCost ? Number(latestCost.plan_cumulative ?? 0) : 0;
+  const planCostPct    = totalPlanCost > 0 ? (planCost / totalPlanCost) * 100 : 0;
+  const actCostPct     = totalPlanCost > 0 ? (actCost  / totalPlanCost) * 100 : 0;
+  const devCostPct     = actCostPct - planCostPct;
+
   return (
     <div>
       {/* Header */}
@@ -216,16 +222,21 @@ export default function SCurvePage() {
             <div className="panel-block" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ color: 'var(--muted)' }}>Rencana</div>
               <strong>{formatCurrency(planCost)}</strong>
+              <div style={{ color: 'var(--muted)', fontSize: 11, marginTop: 2 }}>{planCostPct.toFixed(1)}%</div>
             </div>
             <div className="panel-block" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ color: 'var(--muted)' }}>Realisasi</div>
               <strong style={{ color: actCost <= planCost ? 'var(--ok)' : 'var(--danger)' }}>{formatCurrency(actCost)}</strong>
+              <div style={{ color: actCostPct >= planCostPct ? 'var(--ok)' : 'var(--danger)', fontSize: 11, marginTop: 2, fontWeight: 600 }}>{actCostPct.toFixed(1)}%</div>
             </div>
             <div className="panel-block" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ color: 'var(--muted)' }}>Deviasi</div>
               <strong style={{ color: devCost <= 0 ? 'var(--ok)' : 'var(--danger)' }}>
                 {devCost > 0 ? '+' : ''}{formatCurrency(devCost)}
               </strong>
+              <div style={{ color: devCostPct >= 0 ? 'var(--ok)' : 'var(--danger)', fontSize: 11, marginTop: 2, fontWeight: 600 }}>
+                {devCostPct >= 0 ? '+' : ''}{devCostPct.toFixed(2)}%
+              </div>
             </div>
           </div>
         </div>
