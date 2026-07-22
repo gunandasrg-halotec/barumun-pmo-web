@@ -62,7 +62,7 @@ export default function ProjectDashboardPage() {
   const deviation          = dash?.cost_deviation_percent ?? 0;
   const progressPct        = dash?.overall_progress_percent ?? 0;
   const plannedProgressPct = dash?.planned_progress_percent ?? progressPct;
-  const actualProgressPct  = dash?.actual_progress_percent  ?? progressPct;
+  const actualProgressPct  = dash?.overall_progress_percent ?? progressPct;
 
   const nodes: any[] = dash?.nodes ?? [];
   const groups = nodes.filter((n: any) => n.node_type === 'GROUP');
