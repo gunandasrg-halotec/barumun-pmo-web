@@ -181,6 +181,14 @@ export default function ProgressListPage() {
 
   const doneCount = useMemo(() => allGroups.filter((g) => g.isDone).length, [allGroups]);
 
+  const totalSisaBiaya = useMemo(() =>
+    filteredGroups.reduce((sum, g) => {
+      const costPlan = Number(g.wbdNode?.planned_cost ?? 0);
+      const totalCostReal = g.entries.reduce((s: number, e: any) => s + Number(e.actual_cost ?? 0), 0);
+      return sum + (costPlan - totalCostReal);
+    }, 0),
+  [filteredGroups]);
+
   function toggleGroup(nodeId: string) {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
@@ -248,6 +256,14 @@ export default function ProgressListPage() {
           <div className="summary-item">
             <span>Total Biaya Realisasi</span>
             <strong>{formatCurrency(totalCostReal)}</strong>
+          </div>
+          <div className="summary-item">
+            <span>Sisa Biaya</span>
+            <strong style={{ color: totalSisaBiaya < 0 ? "var(--danger)" : "inherit" }}>
+              {totalSisaBiaya < 0
+                ? `+${formatCurrency(Math.abs(totalSisaBiaya))}`
+                : formatCurrency(totalSisaBiaya)}
+            </strong>
           </div>
           <div className="summary-item">
             <span>Item Selesai</span>
