@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import api from "../../services/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -71,6 +71,9 @@ export default function ProgressListPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [completionFilter, setCompletionFilter] = useState<"all" | "done" | "ongoing">("all");
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [showCreate, setShowCreate] = useState(false);
   const [rejectModal, setRejectModal] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -87,7 +90,7 @@ export default function ProgressListPage() {
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
         page,
-        limit: 20,
+        limit: 500,
       }),
   });
 
@@ -123,7 +126,58 @@ export default function ProgressListPage() {
   const totalVolReal  = meta?.total_volume  ?? entries.reduce((s: number, e: any) => s + Number(e.progress_volume ?? 0), 0);
   const totalCostReal = meta?.total_cost    ?? entries.reduce((s: number, e: any) => s + Number(e.actual_cost ?? 0), 0);
   const pendingCount  = meta?.pending_count ?? entries.filter((e: any) => e.status === "PENDING_PM_APPROVAL" || e.status === "PENDING_DIRECTOR_APPROVAL").length;
-  const updatedToday  = entries.filter((e: any) => formatDate(e.progress_date) === formatDate(new Date().toISOString())).length;
+
+  // Group entries by wbd_node_id
+  const allGroups = useMemo(() => {
+    const map = new Map<string, { nodeId: string; nodeInfo: (typeof itemNodes)[0] | undefined; wbdNode: any; entries: any[] }>();
+    for (const entry of entries) {
+      const nodeId: string = entry.wbd_node?.id ?? entry.wbd_node_id ?? "unknown";
+      if (!map.has(nodeId)) {
+        map.set(nodeId, {
+          nodeId,
+          nodeInfo: itemNodes.find((n) => n.id === nodeId),
+          wbdNode: entry.wbd_node,
+          entries: [],
+        });
+      }
+      map.get(nodeId)!.entries.push(entry);
+    }
+    return Array.from(map.values());
+  }, [entries, itemNodes]);
+
+  const filteredGroups = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return allGroups.filter((g) => {
+      if (q) {
+        const name = (g.wbdNode?.name ?? "").toLowerCase();
+        const code = (g.wbdNode?.code ?? "").toLowerCase();
+        if (!name.includes(q) && !code.includes(q)) return false;
+      }
+      if (completionFilter !== "all") {
+        const rem = g.nodeInfo?.latest_remaining_volume;
+        const isDone = rem != null ? rem === 0 : g.entries.some((e) => e.remaining_volume === 0);
+        if (completionFilter === "done" && !isDone) return false;
+        if (completionFilter === "ongoing" && isDone) return false;
+      }
+      return true;
+    });
+  }, [allGroups, searchQuery, completionFilter]);
+
+  const doneCount = useMemo(() =>
+    allGroups.filter((g) => {
+      const rem = g.nodeInfo?.latest_remaining_volume;
+      return rem != null ? rem === 0 : g.entries.some((e) => e.remaining_volume === 0);
+    }).length,
+  [allGroups]);
+
+  function toggleGroup(nodeId: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+  }
 
   const tableWrapperRef = useRef<HTMLDivElement | null>(null);
 
@@ -185,9 +239,9 @@ export default function ProgressListPage() {
             <strong>{formatCurrency(totalCostReal)}</strong>
           </div>
           <div className="summary-item">
-            <span>Diupdate Hari Ini</span>
+            <span>Item Selesai</span>
             <strong style={{ color: "var(--green-700)" }}>
-              {updatedToday}
+              {doneCount}
             </strong>
           </div>
           <div className="summary-item">
@@ -199,7 +253,56 @@ export default function ProgressListPage() {
 
       {/* Main table */}
       <div className="section-card glass">
-        <div className="toolbar">
+        <div className="toolbar" style={{ flexWrap: "wrap", gap: 8 }}>
+          {/* Search */}
+          <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+            <span style={{ position: "absolute", left: 9, color: "var(--muted)", fontSize: 13, pointerEvents: "none" }}>⌕</span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari nama / kode item pekerjaan…"
+              style={{ paddingLeft: 28, width: 240 }}
+            />
+          </div>
+
+          {/* Completion filter pills */}
+          <div className="cluster" style={{ gap: 4 }}>
+            {(["all", "done", "ongoing"] as const).map((cf) => {
+              const labels = { all: "Semua", done: "✓ Selesai", ongoing: "⏳ Belum Selesai" };
+              const isActive = completionFilter === cf;
+              return (
+                <button
+                  key={cf}
+                  onClick={() => setCompletionFilter(cf)}
+                  style={{
+                    padding: "5px 12px",
+                    borderRadius: 20,
+                    border: "1px solid",
+                    borderColor: isActive
+                      ? cf === "all" ? "var(--text)" : cf === "done" ? "var(--green-700)" : "var(--warning)"
+                      : "var(--line)",
+                    background: isActive
+                      ? cf === "all" ? "var(--text)" : cf === "done" ? "var(--green-lt, rgba(45,125,70,0.1))" : "rgba(200,120,0,0.1)"
+                      : "transparent",
+                    color: isActive
+                      ? cf === "all" ? "var(--bg)" : cf === "done" ? "var(--green-700)" : "var(--warning)"
+                      : "var(--muted)",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    transition: "all .15s",
+                  }}
+                >
+                  {labels[cf]}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ width: 1, height: 22, background: "var(--line)", flexShrink: 0 }} />
+
           <select
             value={statusFilter}
             onChange={(e) => {
@@ -239,6 +342,8 @@ export default function ProgressListPage() {
               setStatusFilter("");
               setDateFrom("");
               setDateTo("");
+              setSearchQuery("");
+              setCompletionFilter("all");
               setPage(1);
             }}
           >
@@ -277,111 +382,103 @@ export default function ProgressListPage() {
               </div>
             )}
           </div>
+        ) : filteredGroups.length === 0 ? (
+          <div className="empty-state">
+            Tidak ada item yang cocok dengan filter.{" "}
+            <button
+              className="btn secondary"
+              style={{ marginLeft: 8 }}
+              onClick={() => { setSearchQuery(""); setCompletionFilter("all"); }}
+            >
+              Reset Filter
+            </button>
+          </div>
         ) : (
           <>
             <div className="table-wrap" ref={tableWrapperRef}>
               <table className="progress-table">
                 <thead>
                   <tr>
-                    <th className="progress-table-col-1 progress-table-col-1-width">
-                      No
+                    <th className="progress-table-col-2 progress-table-col-2-width" style={{ textAlign: "left" }}>
+                      Item Pekerjaan
                     </th>
-                    <th className="progress-table-col-2 progress-table-col-2-width">
-                      Uraian Pekerjaan
-                    </th>
-                    <th>Grup</th>
+                    <th>Sat</th>
                     <th>Vol. Rencana</th>
                     <th>Vol. Realisasi</th>
                     <th>Sisa Volume</th>
                     <th>Biaya Rencana</th>
                     <th>Biaya Realisasi</th>
                     <th>Sisa Biaya</th>
-                    <th>Lampiran</th>
-                    <th>Update Terakhir</th>
                     <th>Status</th>
                     <th>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {entries.map((entry: any, idx: number) => {
-                    const st = STATUS_MAP[entry.status] ?? {
-                      label: entry.status,
-                      cls: "planned",
-                    };
-                    const volPlan = Number(entry.wbd_node?.volume ?? 0);
-                    const volReal = Number(entry.progress_volume ?? 0);
-                    const isNodeDone = entry.remaining_volume === 0;
-                    const volSisa = isNodeDone
-                      ? 0
-                      : entry.remaining_volume != null
-                        ? Number(entry.remaining_volume)
-                        : Math.max(0, volPlan - volReal);
-                    const costPlan = Number(entry.wbd_node?.planned_cost ?? 0);
-                    const costReal = Number(entry.actual_cost ?? 0);
-                    const costSisa = costPlan - costReal;
-                    const isOver =
-                      Math.round(costReal) > Math.round(costPlan) &&
-                      costPlan > 0;
-                    const pct =
-                      volPlan > 0
-                        ? Math.min(100, Math.round((volReal / volPlan) * 100))
-                        : 0;
+                  {filteredGroups.map((group) => {
+                    const wn = group.wbdNode;
+                    const ni = group.nodeInfo;
+                    const isExpanded = expandedGroups.has(group.nodeId);
+
+                    // Group-level aggregates
+                    const volPlan = Number(wn?.volume ?? ni?.volume ?? 0);
+                    const costPlan = Number(wn?.planned_cost ?? 0);
+                    const totalVolReal = group.entries.reduce((s: number, e: any) => s + Number(e.progress_volume ?? 0), 0);
+                    const totalCostReal = group.entries.reduce((s: number, e: any) => s + Number(e.actual_cost ?? 0), 0);
+
+                    // Use latest_remaining_volume from node if available
+                    const latestRem = ni?.latest_remaining_volume;
+                    const volSisa = latestRem != null ? latestRem : Math.max(0, volPlan - totalVolReal);
+                    const isGroupDone = volSisa === 0;
+                    const pct = volPlan > 0 ? Math.min(100, Math.round((totalVolReal / volPlan) * 100)) : 0;
+                    const costSisa = costPlan - totalCostReal;
+                    const isOver = Math.round(totalCostReal) > Math.round(costPlan) && costPlan > 0;
+
+                    const hasPending = group.entries.some((e: any) =>
+                      e.status === "PENDING_PM_APPROVAL" || e.status === "PENDING_DIRECTOR_APPROVAL"
+                    );
 
                     return (
-                      <tr key={entry.id}>
-                        <td
-                          className="progress-table-col-1 progress-table-col-1-width"
-                          style={{ color: "var(--muted)", fontSize: 12 }}
+                      <React.Fragment key={group.nodeId}>
+                        {/* Group header row */}
+                        <tr
+                          onClick={() => toggleGroup(group.nodeId)}
+                          style={{
+                            cursor: "pointer",
+                            background: isGroupDone ? "rgba(45,125,70,0.06)" : "var(--surface-alt, rgba(0,0,0,0.02))",
+                          }}
                         >
-                          {(page - 1) * 20 + idx + 1}
-                        </td>
-                        <td className="progress-table-col-2 progress-table-col-2-width">
-                          <div
-                            title={entry.wbd_node?.name}
-                            style={{
-                              width: "250px",
-                              fontWeight: 600,
-                              fontSize: 13,
-                              whiteSpace: "nowrap",
-                              textOverflow: "ellipsis",
-                              overflow: "hidden",
-                              cursor: "pointer",
-                            }}
-                          >
-                            {entry.wbd_node?.name ?? "—"}
-                          </div>
-                          <div style={{ fontSize: 11, color: "var(--muted)" }}>
-                            {entry.wbd_node?.code}
-                          </div>
-                        </td>
-                        <td style={{ fontSize: 12 }}>
-                          {entry.wbd_node?.group_name ?? "—"}
-                        </td>
-                        <td style={{ fontSize: 12 }}>
-                          {formatNumber(volPlan)}{" "}
-                          <span style={{ color: "var(--muted)" }}>
-                            {entry.wbd_node?.unit}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ fontSize: 12, fontWeight: 600 }}>
-                            {formatNumber(volReal)}{" "}
-                            <span style={{ color: "var(--muted)" }}>
-                              {entry.wbd_node?.unit}
-                            </span>
-                          </div>
-                          <div
-                            style={{
-                              marginTop: 4,
-                              height: 5,
-                              background: "var(--line)",
-                              borderRadius: 3,
-                              width: 80,
-                              overflow: "hidden",
-                            }}
-                          >
-                            <div
-                              style={{
+                          <td className="progress-table-col-2 progress-table-col-2-width">
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{
+                                display: "inline-block",
+                                transition: "transform .2s",
+                                transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                                color: "var(--muted)",
+                                fontSize: 13,
+                                width: 16,
+                                flexShrink: 0,
+                              }}>›</span>
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: 13 }} title={wn?.name}>
+                                  {wn?.name ?? "—"}
+                                </div>
+                                <div style={{ fontSize: 11, color: "var(--muted)", fontFamily: "monospace" }}>
+                                  {wn?.code}
+                                  {hasPending && (
+                                    <span style={{ marginLeft: 6, background: "var(--warning)", color: "#fff", borderRadius: 8, padding: "1px 6px", fontSize: 10, fontWeight: 700, fontFamily: "inherit" }}>
+                                      Pending
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ fontSize: 12, color: "var(--muted)" }}>{wn?.unit ?? ni?.unit}</td>
+                          <td style={{ fontSize: 12 }}>{formatNumber(volPlan)}</td>
+                          <td>
+                            <div style={{ fontSize: 12, fontWeight: 600 }}>{formatNumber(totalVolReal)}</div>
+                            <div style={{ marginTop: 4, height: 5, background: "var(--line)", borderRadius: 3, width: 80, overflow: "hidden" }}>
+                              <div style={{
                                 height: "100%",
                                 width: `${pct}%`,
                                 background: isOver
@@ -390,213 +487,125 @@ export default function ProgressListPage() {
                                     ? "linear-gradient(90deg,var(--green-700),var(--green-500))"
                                     : "linear-gradient(90deg,var(--green-800),var(--green-600))",
                                 borderRadius: 3,
-                              }}
-                            />
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 10,
-                              color: "var(--muted)",
-                              marginTop: 2,
-                            }}
-                          >
-                            {pct}%
-                          </div>
-                        </td>
-                        <td style={{ fontSize: 12 }}>
-                          {isNodeDone ? (
-                            <span className="badge done">Selesai</span>
-                          ) : (
-                            <span
-                              style={{
-                                color: volSisa === 0 ? "var(--ok)" : "inherit",
-                              }}
-                            >
-                              {formatNumber(volSisa)}{" "}
-                              <span style={{ color: "var(--muted)" }}>
-                                {entry.wbd_node?.unit}
-                              </span>
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ fontSize: 12 }}>
-                          {formatCurrency(costPlan)}
-                        </td>
-                        <td
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: isOver ? "var(--danger)" : "inherit",
-                          }}
-                        >
-                          {formatCurrency(costReal)}
-                        </td>
-                        <td
-                          style={{
-                            fontSize: 12,
-                            color: isOver ? "var(--danger)" : "inherit",
-                          }}
-                        >
-                          {isOver
-                            ? `+${formatCurrency(Math.abs(costSisa))}`
-                            : formatCurrency(costSisa)}
-                        </td>
-                        <td style={{ textAlign: "center" }}>
-                          {entry.attachment_path ? (
-                            <button
-                              className="chip clickable"
-                              style={{ fontSize: 16, padding: "2px 6px" }}
-                              title="Lihat lampiran"
-                              onClick={async () => {
-                                try {
-                                  const res = await api.get(
-                                    `/progress-entries/${entry.id}/attachment`,
-                                    { responseType: "blob" },
-                                  );
-                                  const url = URL.createObjectURL(res.data);
-                                  const a = document.createElement("a");
-                                  a.href = url;
-                                  a.target = "_blank";
-                                  a.rel = "noopener noreferrer";
-                                  document.body.appendChild(a);
-                                  a.click();
-                                  document.body.removeChild(a);
-                                  setTimeout(
-                                    () => URL.revokeObjectURL(url),
-                                    10000,
-                                  );
-                                } catch (err: any) {
-                                  let detail = "";
-                                  try {
-                                    const blob: Blob = err?.response?.data;
-                                    if (blob instanceof Blob) {
-                                      const text = await blob.text();
-                                      const json = JSON.parse(text);
-                                      detail = json?.message ?? text;
-                                    }
-                                  } catch {
-                                    /* ignore */
-                                  }
-                                  const status =
-                                    err?.response?.status ?? "network error";
-                                  console.error(
-                                    "[attachment] error",
-                                    status,
-                                    detail,
-                                  );
-                                  alert(
-                                    `Gagal membuka lampiran. (${status}${detail ? ": " + detail : ""})`,
-                                  );
-                                }
-                              }}
-                            >
-                              📎
-                            </button>
-                          ) : (
-                            <span
-                              style={{ color: "var(--muted)", fontSize: 12 }}
-                            >
-                              —
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ fontSize: 11, color: "var(--muted)" }}>
-                          <div>{formatDate(entry.progress_date)}</div>
-                          <div>{entry.entered_by?.full_name ?? "—"}</div>
-                        </td>
-                        <td>
-                          <span className={`badge ${st.cls}`}>{st.label}</span>
-                          {isOver && (
-                            <div>
-                              <span
-                                className="badge delay"
-                                style={{ marginTop: 3, fontSize: 10 }}
-                              >
-                                Over Budget
-                              </span>
+                              }} />
                             </div>
-                          )}
-                        </td>
-                        <td>
-                          <div className="cluster">
-                            {canApproveProgress() &&
-                              entry.status === "PENDING_PM_APPROVAL" && (
-                                <>
+                            <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{pct}%</div>
+                          </td>
+                          <td style={{ fontSize: 12 }}>
+                            {isGroupDone ? (
+                              <span className="badge done">Selesai</span>
+                            ) : (
+                              <span>{formatNumber(volSisa)}</span>
+                            )}
+                          </td>
+                          <td style={{ fontSize: 12 }}>{formatCurrency(costPlan)}</td>
+                          <td style={{ fontSize: 12, fontWeight: 600, color: isOver ? "var(--danger)" : "inherit" }}>
+                            {formatCurrency(totalCostReal)}
+                          </td>
+                          <td style={{ fontSize: 12, color: isOver ? "var(--danger)" : "inherit" }}>
+                            {isOver ? `+${formatCurrency(Math.abs(costSisa))}` : formatCurrency(costSisa)}
+                          </td>
+                          <td>
+                            <span className={`badge ${isGroupDone ? "done" : "running"}`}>
+                              {isGroupDone ? "Selesai" : "Berjalan"}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: 11, color: "var(--muted)" }}>
+                              {group.entries.length} entri
+                            </span>
+                          </td>
+                        </tr>
+
+                        {/* Child entry rows */}
+                        {isExpanded && group.entries.map((entry: any) => {
+                          const st = STATUS_MAP[entry.status] ?? { label: entry.status, cls: "planned" };
+                          const eVolReal = Number(entry.progress_volume ?? 0);
+                          const eCostReal = Number(entry.actual_cost ?? 0);
+                          const isEntryOver = Math.round(eCostReal) > Math.round(costPlan) && costPlan > 0;
+
+                          return (
+                            <tr key={entry.id} style={{ background: "rgba(0,0,0,0.015)" }}>
+                              <td style={{ paddingLeft: 38, fontSize: 12 }}>
+                                <div style={{ color: "var(--muted)" }}>{formatDate(entry.progress_date)}</div>
+                                <div style={{ fontSize: 11, color: "var(--muted)" }}>{entry.entered_by?.full_name ?? "—"}</div>
+                                {entry.attachment_path && (
                                   <button
                                     className="chip clickable"
-                                    style={{ color: "var(--ok)" }}
-                                    onClick={() => approveMut.mutate(entry.id)}
-                                    disabled={approveMut.isPending}
+                                    style={{ fontSize: 12, padding: "1px 5px", marginTop: 2 }}
+                                    title="Lihat lampiran"
+                                    onClick={async (ev) => {
+                                      ev.stopPropagation();
+                                      try {
+                                        const res = await api.get(`/progress-entries/${entry.id}/attachment`, { responseType: "blob" });
+                                        const url = URL.createObjectURL(res.data);
+                                        const a = document.createElement("a");
+                                        a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer";
+                                        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                                        setTimeout(() => URL.revokeObjectURL(url), 10000);
+                                      } catch (err: any) {
+                                        let detail = "";
+                                        try {
+                                          const blob: Blob = err?.response?.data;
+                                          if (blob instanceof Blob) { const text = await blob.text(); const json = JSON.parse(text); detail = json?.message ?? text; }
+                                        } catch { /* ignore */ }
+                                        alert(`Gagal membuka lampiran. (${err?.response?.status ?? "network error"}${detail ? ": " + detail : ""})`);
+                                      }
+                                    }}
                                   >
-                                    ✓ Setujui
+                                    📎 Lampiran
                                   </button>
-                                  <button
-                                    className="chip clickable"
-                                    style={{ color: "var(--danger)" }}
-                                    onClick={() => setRejectModal(entry.id)}
-                                  >
-                                    ✕ Tolak
-                                  </button>
-                                </>
-                              )}
-                            {isDireksi() &&
-                              entry.status === "PENDING_DIRECTOR_APPROVAL" && (
-                                <>
-                                  <button
-                                    className="chip clickable"
-                                    style={{ color: "var(--ok)" }}
-                                    onClick={() => approveMut.mutate(entry.id)}
-                                    disabled={approveMut.isPending}
-                                  >
-                                    ✓ Setujui
-                                  </button>
-                                  <button
-                                    className="chip clickable"
-                                    style={{ color: "var(--danger)" }}
-                                    onClick={() => setRejectModal(entry.id)}
-                                  >
-                                    ✕ Tolak
-                                  </button>
-                                </>
-                              )}
-                          </div>
-                        </td>
-                      </tr>
+                                )}
+                              </td>
+                              <td />
+                              <td />
+                              <td style={{ fontSize: 12, fontWeight: 600 }}>{formatNumber(eVolReal)}</td>
+                              <td />
+                              <td />
+                              <td style={{ fontSize: 12, color: isEntryOver ? "var(--danger)" : "inherit" }}>
+                                {eCostReal > 0 ? formatCurrency(eCostReal) : <span style={{ color: "var(--muted)" }}>—</span>}
+                              </td>
+                              <td />
+                              <td>
+                                <span className={`badge ${st.cls}`}>{st.label}</span>
+                              </td>
+                              <td onClick={(e) => e.stopPropagation()}>
+                                <div className="cluster">
+                                  {canApproveProgress() && entry.status === "PENDING_PM_APPROVAL" && (
+                                    <>
+                                      <button className="chip clickable" style={{ color: "var(--ok)" }} onClick={() => approveMut.mutate(entry.id)} disabled={approveMut.isPending}>✓ Setujui</button>
+                                      <button className="chip clickable" style={{ color: "var(--danger)" }} onClick={() => setRejectModal(entry.id)}>✕ Tolak</button>
+                                    </>
+                                  )}
+                                  {isDireksi() && entry.status === "PENDING_DIRECTOR_APPROVAL" && (
+                                    <>
+                                      <button className="chip clickable" style={{ color: "var(--ok)" }} onClick={() => approveMut.mutate(entry.id)} disabled={approveMut.isPending}>✓ Setujui</button>
+                                      <button className="chip clickable" style={{ color: "var(--danger)" }} onClick={() => setRejectModal(entry.id)}>✕ Tolak</button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
               </table>
             </div>
 
-            {meta && meta.total > meta.limit && (
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  padding: "14px 0 0",
-                  alignItems: "center",
-                  fontSize: 13,
-                }}
-              >
-                <button
-                  className="btn secondary"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  ← Prev
-                </button>
-                <span style={{ color: "var(--muted)" }}>
-                  Halaman {meta.page} dari {Math.ceil(meta.total / meta.limit)}
-                </span>
-                <button
-                  className="btn secondary"
-                  disabled={page >= Math.ceil(meta.total / meta.limit)}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next →
-                </button>
-              </div>
-            )}
+            <div style={{ display: "flex", gap: 8, padding: "12px 0 0", alignItems: "center", fontSize: 12, color: "var(--muted)" }}>
+              <span>{filteredGroups.length} item ditampilkan · {doneCount} selesai · {entries.length} total entri</span>
+              {meta && meta.total > 500 && (
+                <>
+                  <div style={{ flex: 1 }} />
+                  <button className="btn secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>← Prev</button>
+                  <span>Halaman {meta.page} dari {Math.ceil(meta.total / 500)}</span>
+                  <button className="btn secondary" disabled={page >= Math.ceil(meta.total / 500)} onClick={() => setPage((p) => p + 1)}>Next →</button>
+                </>
+              )}
+            </div>
           </>
         )}
       </div>
