@@ -99,6 +99,12 @@ export default function SCurvePage() {
     enabled: !!projectId,
   });
 
+  const { data: dashData } = useQuery({
+    queryKey: ['dashboard', projectId],
+    queryFn: () => analyticsService.dashboard(projectId!),
+    enabled: !!projectId,
+  });
+
   if (isLoading) return <div className="loading-state">Memuat S-Curve...</div>;
   if (error)     return <div className="danger-box">{extractError(error)}</div>;
 
@@ -132,6 +138,11 @@ export default function SCurvePage() {
   const actCostPct     = totalPlanCost > 0 ? (actCost  / totalPlanCost) * 100 : 0;
   const devCostPct     = actCostPct - planCostPct;
 
+  // Completion estimates from dashboard API (realisasi / (realisasi + sisa))
+  const dash             = (dashData as any)?.data ?? {};
+  const volCompletion    = dash?.actual_progress_percent  ?? null;
+  const costCompletion   = dash?.actual_cost_percent      ?? null;
+
   return (
     <div>
       {/* Header */}
@@ -152,12 +163,33 @@ export default function SCurvePage() {
         {/* KPI bar */}
         <div className="summary-bar">
           <div className="summary-item">
-            <span>Rencana Kumulatif (Vol.)</span>
+            <span>Rencana s/d Hari Ini</span>
             <strong>{planVolPct.toFixed(1)}%</strong>
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>vol</span>
           </div>
           <div className="summary-item">
-            <span>Actual Kumulatif (Vol.)</span>
+            <span>Realisasi vs Baseline</span>
             <strong style={{ color: actVolPct >= planVolPct ? 'var(--ok)' : 'var(--danger)' }}>{actVolPct.toFixed(1)}%</strong>
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>vol</span>
+          </div>
+          <div className="summary-item">
+            <span>Penyelesaian Aktual</span>
+            <strong style={{ color: volCompletion != null && volCompletion >= actVolPct ? 'var(--ok)' : 'var(--muted)' }}>
+              {volCompletion != null ? `${volCompletion.toFixed(1)}%` : '—'}
+            </strong>
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>vol</span>
+          </div>
+          <div className="summary-item">
+            <span>Realisasi vs Baseline</span>
+            <strong style={{ color: actCostPct >= planCostPct ? 'var(--ok)' : 'var(--danger)' }}>{actCostPct.toFixed(1)}%</strong>
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>biaya</span>
+          </div>
+          <div className="summary-item">
+            <span>Penyelesaian Aktual</span>
+            <strong style={{ color: costCompletion != null && costCompletion >= actCostPct ? 'var(--ok)' : 'var(--muted)' }}>
+              {costCompletion != null ? `${costCompletion.toFixed(1)}%` : '—'}
+            </strong>
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>biaya</span>
           </div>
           <div className="summary-item">
             <span>Deviasi Volume</span>
