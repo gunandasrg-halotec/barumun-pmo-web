@@ -151,14 +151,10 @@ export default function ProgressListPage() {
       })
       .map((g) => {
         const latestRem = g.nodeInfo?.latest_remaining_volume;
-        // Fall back to the latest entry's remaining_volume (API returns entries newest-first)
-        const latestEntryRem = g.entries[0]?.remaining_volume ?? null;
-        const isDone =
-          latestRem != null
-            ? latestRem === 0
-            : latestEntryRem != null
-              ? Number(latestEntryRem) === 0
-              : false;
+        const volPlan = Number(g.wbdNode?.volume ?? g.nodeInfo?.volume ?? 0);
+        const totalVolReal = g.entries.reduce((s: number, e: any) => s + Number(e.progress_volume ?? 0), 0);
+        const volSisa = latestRem != null ? latestRem : Math.max(0, volPlan - totalVolReal);
+        const isDone = volSisa === 0;
         return { ...g, isDone };
       });
   }, [entries, itemNodes]);
