@@ -758,7 +758,6 @@ function UploadForm({
           ))}
         </select>
       </div>
-      {photoDate}
       {isPhoto && (
         <>
           <div className="field">
