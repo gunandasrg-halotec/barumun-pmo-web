@@ -119,50 +119,26 @@ export default function ProgressListPage() {
   const itemNodes = flattenNodes((nodesQ.data as any)?.data ?? []);
   const hasBaseline = (projectQ.data as any)?.data?.has_active_baseline;
 
-  const totalVolReal = entries.reduce(
-    (s: number, e: any) => s + Number(e.progress_volume ?? 0),
-    0,
-  );
-  const totalCostReal = entries.reduce(
-    (s: number, e: any) => s + Number(e.actual_cost ?? 0),
-    0,
-  );
-  const updatedToday = entries.filter(
-    (e: any) =>
-      formatDate(e.progress_date) === formatDate(new Date().toISOString()),
-  ).length;
-  const pendingCount = entries.filter(
-    (e: any) =>
-      e.status === "PENDING_PM_APPROVAL" ||
-      e.status === "PENDING_DIRECTOR_APPROVAL",
-  ).length;
+  // Use server-side aggregates from meta for accurate totals across all pages
+  const totalVolReal  = meta?.total_volume  ?? entries.reduce((s: number, e: any) => s + Number(e.progress_volume ?? 0), 0);
+  const totalCostReal = meta?.total_cost    ?? entries.reduce((s: number, e: any) => s + Number(e.actual_cost ?? 0), 0);
+  const pendingCount  = meta?.pending_count ?? entries.filter((e: any) => e.status === "PENDING_PM_APPROVAL" || e.status === "PENDING_DIRECTOR_APPROVAL").length;
+  const updatedToday  = entries.filter((e: any) => formatDate(e.progress_date) === formatDate(new Date().toISOString())).length;
+
   const tableWrapperRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const container = tableWrapperRef.current;
-    if (entries.length == 0) {
-      console.log("nothing");
-    }
     if (!container) return;
-    console.log("binding....");
 
-    // TypeScript event typing for the native wheel listener
     const handleWheel = (event: WheelEvent): void => {
-      console.log("ok");
       if (event.deltaY !== 0) {
         event.preventDefault();
         container.scrollLeft += event.deltaY;
       }
     };
 
-    /* 
-      We must bind via native addEventListener instead of React's onWheel prop.
-      React's synthetic event system forces onWheel listeners to be 'passive',
-      which blocks event.preventDefault() from working.
-    */
     container.addEventListener("wheel", handleWheel, { passive: false });
-
-    // Clean up event listener when component unmounts to prevent memory leaks
     return () => {
       container.removeEventListener("wheel", handleWheel);
     };
