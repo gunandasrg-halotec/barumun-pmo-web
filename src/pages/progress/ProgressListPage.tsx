@@ -53,8 +53,14 @@ function flattenNodes(
             unit: n.unit ?? "",
             volume: n.volume ?? null,
             rate: n.rate ?? null,
-            latest_remaining_volume: (n as any).latest_remaining_volume ?? null,
-            latest_remaining_cost: (n as any).latest_remaining_cost ?? null,
+            latest_remaining_volume:
+              (n as any).latest_remaining_volume != null
+                ? Number((n as any).latest_remaining_volume)
+                : null,
+            latest_remaining_cost:
+              (n as any).latest_remaining_cost != null
+                ? Number((n as any).latest_remaining_cost)
+                : null,
           },
         ]
       : []),
@@ -153,7 +159,7 @@ export default function ProgressListPage() {
         const latestRem = g.nodeInfo?.latest_remaining_volume;
         const volPlan = Number(g.wbdNode?.volume ?? g.nodeInfo?.volume ?? 0);
         const totalVolReal = g.entries.reduce((s: number, e: any) => s + Number(e.progress_volume ?? 0), 0);
-        const volSisa = latestRem != null ? latestRem : Math.max(0, volPlan - totalVolReal);
+        const volSisa = latestRem != null ? Number(latestRem) : Math.max(0, volPlan - totalVolReal);
         const isDone = volSisa === 0;
         return { ...g, isDone };
       });
@@ -432,7 +438,7 @@ export default function ProgressListPage() {
 
                     // Use latest_remaining_volume from node if available
                     const latestRem = ni?.latest_remaining_volume;
-                    const volSisa = latestRem != null ? latestRem : Math.max(0, volPlan - totalVolReal);
+                    const volSisa = latestRem != null ? Number(latestRem) : Math.max(0, volPlan - totalVolReal);
                     const isGroupDone = group.isDone;
                     const pct = volPlan > 0 ? Math.min(100, Math.round((totalVolReal / volPlan) * 100)) : 0;
                     const costSisa = costPlan - totalCostReal;
