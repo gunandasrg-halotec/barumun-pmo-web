@@ -138,9 +138,11 @@ export default function SCurvePage() {
   const actCostPct     = totalPlanCost > 0 ? (actCost  / totalPlanCost) * 100 : 0;
   const devCostPct     = actCostPct - planCostPct;
 
-  // Completion estimates from dashboard API (realisasi / (realisasi + sisa))
+  // vs Baseline and completion estimates from dashboard API (single source of truth)
   const dash             = (dashData as any)?.data ?? {};
-  const volCompletion    = dash?.actual_progress_percent  ?? null;
+  const volVsBaseline    = dash?.overall_progress_percent ?? null;   // realisasi / planned
+  const costVsBaseline   = dash?.cost_vs_baseline_percent ?? null;   // realisasi / total planned cost
+  const volCompletion    = dash?.actual_progress_percent  ?? null;   // realisasi / (realisasi + sisa)
   const costCompletion   = dash?.actual_cost_percent      ?? null;
 
   return (
@@ -154,9 +156,14 @@ export default function SCurvePage() {
           </div>
           <div className="cluster">
             <span className="chip">Sumber: Baseline WBD Aktif</span>
-            <span className={`chip ${devVolPct >= 0 ? 'status-ok' : 'status-bad'}`}>
-              Volume {devVolPct >= 0 ? '+' : ''}{devVolPct.toFixed(1)}%
-            </span>
+            {volVsBaseline != null && (() => {
+              const d = volVsBaseline - planVolPct;
+              return (
+                <span className={`chip ${d >= 0 ? 'status-ok' : 'status-bad'}`}>
+                  Volume {d >= 0 ? '+' : ''}{d.toFixed(1)}%
+                </span>
+              );
+            })()}
           </div>
         </div>
 
@@ -169,24 +176,28 @@ export default function SCurvePage() {
           </div>
           <div className="summary-item">
             <span>Realisasi vs Baseline</span>
-            <strong style={{ color: actVolPct >= planVolPct ? 'var(--ok)' : 'var(--danger)' }}>{actVolPct.toFixed(1)}%</strong>
+            <strong style={{ color: volVsBaseline != null && volVsBaseline >= planVolPct ? 'var(--ok)' : 'var(--danger)' }}>
+              {volVsBaseline != null ? `${volVsBaseline.toFixed(1)}%` : '—'}
+            </strong>
             <span style={{ fontSize: 10, color: 'var(--muted)' }}>vol</span>
           </div>
           <div className="summary-item">
             <span>Penyelesaian Aktual</span>
-            <strong style={{ color: volCompletion != null && volCompletion >= actVolPct ? 'var(--ok)' : 'var(--muted)' }}>
+            <strong style={{ color: 'var(--muted)' }}>
               {volCompletion != null ? `${volCompletion.toFixed(1)}%` : '—'}
             </strong>
             <span style={{ fontSize: 10, color: 'var(--muted)' }}>vol</span>
           </div>
           <div className="summary-item">
             <span>Realisasi vs Baseline</span>
-            <strong style={{ color: actCostPct >= planCostPct ? 'var(--ok)' : 'var(--danger)' }}>{actCostPct.toFixed(1)}%</strong>
+            <strong style={{ color: costVsBaseline != null && costVsBaseline >= planCostPct ? 'var(--ok)' : 'var(--danger)' }}>
+              {costVsBaseline != null ? `${costVsBaseline.toFixed(1)}%` : '—'}
+            </strong>
             <span style={{ fontSize: 10, color: 'var(--muted)' }}>biaya</span>
           </div>
           <div className="summary-item">
             <span>Penyelesaian Aktual</span>
-            <strong style={{ color: costCompletion != null && costCompletion >= actCostPct ? 'var(--ok)' : 'var(--muted)' }}>
+            <strong style={{ color: 'var(--muted)' }}>
               {costCompletion != null ? `${costCompletion.toFixed(1)}%` : '—'}
             </strong>
             <span style={{ fontSize: 10, color: 'var(--muted)' }}>biaya</span>
@@ -227,12 +238,14 @@ export default function SCurvePage() {
             </div>
             <div className="panel-block" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ color: 'var(--muted)' }}>Realisasi</div>
-              <strong style={{ color: actVolPct >= planVolPct ? 'var(--ok)' : 'var(--danger)' }}>{actVolPct.toFixed(1)}%</strong>
+              <strong style={{ color: (volVsBaseline ?? 0) >= planVolPct ? 'var(--ok)' : 'var(--danger)' }}>
+                {volVsBaseline != null ? `${volVsBaseline.toFixed(1)}%` : '—'}
+              </strong>
             </div>
             <div className="panel-block" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ color: 'var(--muted)' }}>Deviasi</div>
               <strong style={{ color: devVolPct >= 0 ? 'var(--ok)' : 'var(--danger)' }}>
-                {devVolPct >= 0 ? '+' : ''}{devVolPct.toFixed(2)}%
+                {volVsBaseline != null ? `${(volVsBaseline - planVolPct) >= 0 ? '+' : ''}${(volVsBaseline - planVolPct).toFixed(2)}%` : '—'}
               </strong>
             </div>
           </div>
@@ -259,7 +272,9 @@ export default function SCurvePage() {
             <div className="panel-block" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ color: 'var(--muted)' }}>Realisasi</div>
               <strong style={{ color: actCost <= planCost ? 'var(--ok)' : 'var(--danger)' }}>{formatCurrency(actCost)}</strong>
-              <div style={{ color: actCostPct >= planCostPct ? 'var(--ok)' : 'var(--danger)', fontSize: 11, marginTop: 2, fontWeight: 600 }}>{actCostPct.toFixed(1)}%</div>
+              <div style={{ color: (costVsBaseline ?? 0) >= planCostPct ? 'var(--ok)' : 'var(--danger)', fontSize: 11, marginTop: 2, fontWeight: 600 }}>
+                {costVsBaseline != null ? `${costVsBaseline.toFixed(1)}%` : '—'}
+              </div>
             </div>
             <div className="panel-block" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ color: 'var(--muted)' }}>Deviasi</div>
