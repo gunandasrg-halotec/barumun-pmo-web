@@ -142,7 +142,12 @@ export default function ProgressListPage() {
       }
       map.get(nodeId)!.entries.push(entry);
     }
-    return Array.from(map.values());
+    const nodeOrder = new Map(itemNodes.map((n, i) => [n.id, i]));
+    return Array.from(map.values()).sort((a, b) => {
+      const ia = nodeOrder.get(a.nodeId) ?? 9999;
+      const ib = nodeOrder.get(b.nodeId) ?? 9999;
+      return ia - ib;
+    });
   }, [entries, itemNodes]);
 
   const filteredGroups = useMemo(() => {
