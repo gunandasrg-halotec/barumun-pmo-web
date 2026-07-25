@@ -99,6 +99,12 @@ export default function SCurvePage() {
     enabled: !!projectId,
   });
 
+  const { data: dashData } = useQuery({
+    queryKey: ['dashboard', projectId],
+    queryFn: () => analyticsService.dashboard(projectId!),
+    enabled: !!projectId,
+  });
+
   if (isLoading) return <div className="loading-state">Memuat S-Curve...</div>;
   if (error)     return <div className="danger-box">{extractError(error)}</div>;
 
@@ -108,16 +114,36 @@ export default function SCurvePage() {
   const insights:   any[] = scurve.insights      ?? [];
   const deviations: any[] = scurve.deviations    ?? [];
 
+  const todayPeriod = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+
+  // For KPI header: use today's period (plan-to-date vs actual-to-date)
+  // Fall back to last entry if today is after project end
+  const todayVolEntry  = volumeData.findLast((d: any) => d.period <= todayPeriod) ?? volumeData.at(-1);
+  const todayCostEntry = costData.findLast((d: any) => d.period <= todayPeriod)   ?? costData.at(-1);
+
   const latestVol  = volumeData.at(-1);
   const latestCost = costData.at(-1);
 
-  const planVolPct  = latestVol  ? Number(latestVol.plan_cumulative   ?? 0) : 0;
-  const actVolPct   = latestVol  ? Number(latestVol.actual_cumulative ?? 0) : 0;
+  const planVolPct  = todayVolEntry  ? Number(todayVolEntry.plan_cumulative   ?? 0) : 0;
+  const actVolPct   = todayVolEntry  ? Number(todayVolEntry.actual_cumulative ?? 0) : 0;
   const devVolPct   = actVolPct - planVolPct;
 
-  const planCost  = latestCost ? Number(latestCost.plan_cumulative   ?? 0) : 0;
-  const actCost   = latestCost ? Number(latestCost.actual_cumulative ?? 0) : 0;
+  const planCost  = todayCostEntry ? Number(todayCostEntry.plan_cumulative   ?? 0) : 0;
+  const actCost   = todayCostEntry ? Number(todayCostEntry.actual_cumulative ?? 0) : 0;
   const devCost   = actCost - planCost;
+
+  // Percentage for cost: relative to total project planned cost (last data point)
+  const totalPlanCost  = latestCost ? Number(latestCost.plan_cumulative ?? 0) : 0;
+  const planCostPct    = totalPlanCost > 0 ? (planCost / totalPlanCost) * 100 : 0;
+  const actCostPct     = totalPlanCost > 0 ? (actCost  / totalPlanCost) * 100 : 0;
+  const devCostPct     = actCostPct - planCostPct;
+
+  // vs Baseline and completion estimates from dashboard API (single source of truth)
+  const dash             = (dashData as any)?.data ?? {};
+  const volVsBaseline    = dash?.overall_progress_percent ?? null;   // realisasi / planned
+  const costVsBaseline   = dash?.cost_vs_baseline_percent ?? null;   // realisasi / total planned cost
+  const volCompletion    = dash?.actual_progress_percent  ?? null;   // realisasi / (realisasi + sisa)
+  const costCompletion   = dash?.actual_cost_percent      ?? null;
 
   return (
     <div>
@@ -130,21 +156,51 @@ export default function SCurvePage() {
           </div>
           <div className="cluster">
             <span className="chip">Sumber: Baseline WBD Aktif</span>
-            <span className={`chip ${devVolPct >= 0 ? 'status-ok' : 'status-bad'}`}>
-              Volume {devVolPct >= 0 ? '+' : ''}{devVolPct.toFixed(1)}%
-            </span>
+            {volVsBaseline != null && (() => {
+              const d = volVsBaseline - planVolPct;
+              return (
+                <span className={`chip ${d >= 0 ? 'status-ok' : 'status-bad'}`}>
+                  Volume {d >= 0 ? '+' : ''}{d.toFixed(1)}%
+                </span>
+              );
+            })()}
           </div>
         </div>
 
         {/* KPI bar */}
         <div className="summary-bar">
           <div className="summary-item">
-            <span>Rencana Kumulatif (Vol.)</span>
+            <span>Rencana s/d Hari Ini</span>
             <strong>{planVolPct.toFixed(1)}%</strong>
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>vol</span>
           </div>
           <div className="summary-item">
-            <span>Actual Kumulatif (Vol.)</span>
-            <strong style={{ color: actVolPct >= planVolPct ? 'var(--ok)' : 'var(--danger)' }}>{actVolPct.toFixed(1)}%</strong>
+            <span>Realisasi vs Baseline</span>
+            <strong style={{ color: volVsBaseline != null && volVsBaseline >= planVolPct ? 'var(--ok)' : 'var(--danger)' }}>
+              {volVsBaseline != null ? `${volVsBaseline.toFixed(1)}%` : '—'}
+            </strong>
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>vol</span>
+          </div>
+          <div className="summary-item">
+            <span>Penyelesaian Aktual</span>
+            <strong style={{ color: 'var(--muted)' }}>
+              {volCompletion != null ? `${volCompletion.toFixed(1)}%` : '—'}
+            </strong>
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>vol</span>
+          </div>
+          <div className="summary-item">
+            <span>Realisasi vs Baseline</span>
+            <strong style={{ color: costVsBaseline != null && costVsBaseline >= planCostPct ? 'var(--ok)' : 'var(--danger)' }}>
+              {costVsBaseline != null ? `${costVsBaseline.toFixed(1)}%` : '—'}
+            </strong>
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>biaya</span>
+          </div>
+          <div className="summary-item">
+            <span>Penyelesaian Aktual</span>
+            <strong style={{ color: 'var(--muted)' }}>
+              {costCompletion != null ? `${costCompletion.toFixed(1)}%` : '—'}
+            </strong>
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>biaya</span>
           </div>
           <div className="summary-item">
             <span>Deviasi Volume</span>
@@ -182,12 +238,14 @@ export default function SCurvePage() {
             </div>
             <div className="panel-block" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ color: 'var(--muted)' }}>Realisasi</div>
-              <strong style={{ color: actVolPct >= planVolPct ? 'var(--ok)' : 'var(--danger)' }}>{actVolPct.toFixed(1)}%</strong>
+              <strong style={{ color: (volVsBaseline ?? 0) >= planVolPct ? 'var(--ok)' : 'var(--danger)' }}>
+                {volVsBaseline != null ? `${volVsBaseline.toFixed(1)}%` : '—'}
+              </strong>
             </div>
             <div className="panel-block" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ color: 'var(--muted)' }}>Deviasi</div>
               <strong style={{ color: devVolPct >= 0 ? 'var(--ok)' : 'var(--danger)' }}>
-                {devVolPct >= 0 ? '+' : ''}{devVolPct.toFixed(2)}%
+                {volVsBaseline != null ? `${(volVsBaseline - planVolPct) >= 0 ? '+' : ''}${(volVsBaseline - planVolPct).toFixed(2)}%` : '—'}
               </strong>
             </div>
           </div>
@@ -209,16 +267,23 @@ export default function SCurvePage() {
             <div className="panel-block" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ color: 'var(--muted)' }}>Rencana</div>
               <strong>{formatCurrency(planCost)}</strong>
+              <div style={{ color: 'var(--muted)', fontSize: 11, marginTop: 2 }}>{planCostPct.toFixed(1)}%</div>
             </div>
             <div className="panel-block" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ color: 'var(--muted)' }}>Realisasi</div>
               <strong style={{ color: actCost <= planCost ? 'var(--ok)' : 'var(--danger)' }}>{formatCurrency(actCost)}</strong>
+              <div style={{ color: (costVsBaseline ?? 0) >= planCostPct ? 'var(--ok)' : 'var(--danger)', fontSize: 11, marginTop: 2, fontWeight: 600 }}>
+                {costVsBaseline != null ? `${costVsBaseline.toFixed(1)}%` : '—'}
+              </div>
             </div>
             <div className="panel-block" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ color: 'var(--muted)' }}>Deviasi</div>
               <strong style={{ color: devCost <= 0 ? 'var(--ok)' : 'var(--danger)' }}>
                 {devCost > 0 ? '+' : ''}{formatCurrency(devCost)}
               </strong>
+              <div style={{ color: devCostPct >= 0 ? 'var(--ok)' : 'var(--danger)', fontSize: 11, marginTop: 2, fontWeight: 600 }}>
+                {devCostPct >= 0 ? '+' : ''}{devCostPct.toFixed(2)}%
+              </div>
             </div>
           </div>
         </div>

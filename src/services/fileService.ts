@@ -74,4 +74,12 @@ export const fileService = {
     const res = await api.delete<ApiResponse<null>>(`/files/${fileId}`);
     return res.data;
   },
+  download: async (url:string, abort: AbortController | null = null) => {
+    
+    return await api.get(url, {
+      responseType: "blob",
+      signal: abort?.signal,
+    });
+  },
+  
 };

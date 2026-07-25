@@ -57,12 +57,18 @@ export default function ProjectDashboardPage() {
   const dash    = (dashQ.data as any)?.data;
   const st      = STATUS_MAP[project?.status] ?? { label: project?.status, cls: 'planned' };
 
-  const totalCost          = dash?.total_baseline_cost    ?? 0;
-  const actualCost         = dash?.total_actual_cost_approved ?? 0;
-  const deviation          = dash?.cost_deviation_percent ?? 0;
-  const progressPct        = dash?.overall_progress_percent ?? 0;
-  const plannedProgressPct = dash?.planned_progress_percent ?? progressPct;
-  const actualProgressPct  = dash?.actual_progress_percent  ?? progressPct;
+  const totalCost             = dash?.total_baseline_cost         ?? 0;
+  const actualCost            = dash?.total_actual_cost_approved  ?? 0;
+  const deviation             = dash?.cost_deviation_percent      ?? 0;
+  const plannedProgressPct    = dash?.planned_progress_percent    ?? 0;
+  // Volume: vs baseline (realisasi / rencana)
+  const volVsBaseline         = dash?.overall_progress_percent    ?? 0;
+  // Volume: completion estimate (realisasi / (realisasi + sisa))
+  const volCompletion         = dash?.actual_progress_percent     ?? 0;
+  // Cost: vs baseline (realisasi / total rencana)
+  const costVsBaseline        = dash?.cost_vs_baseline_percent    ?? 0;
+  // Cost: completion estimate (realisasi / (realisasi + sisa))
+  const costCompletion        = dash?.actual_cost_percent         ?? 0;
 
   const nodes: any[] = dash?.nodes ?? [];
   const groups = nodes.filter((n: any) => n.node_type === 'GROUP');
@@ -81,16 +87,49 @@ export default function ProjectDashboardPage() {
               <span>Total biaya baseline</span>
             </div>
             <div className="hero-stat">
-              <strong>{plannedProgressPct}%</strong>
-              <span>Progress Rencana</span>
-            </div>
-            <div className="hero-stat">
-              <strong>{actualProgressPct}%</strong>
-              <span>Progress Aktual</span>
-            </div>
-            <div className="hero-stat">
               <strong>{project?.active_wbd_version ? `v${project.active_wbd_version.version_number}` : '—'}</strong>
               <span>Baseline aktif</span>
+            </div>
+          </div>
+
+          {/* Progress dual-metric: vs Baseline & Completion */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
+            {/* Volume */}
+            <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '12px 16px' }}>
+              <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 8, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Volume Pekerjaan</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                <div>
+                  <div style={{ fontSize: 11, opacity: 0.6 }}>Rencana s/d hari ini</div>
+                  <div style={{ fontSize: 20, fontWeight: 700 }}>{plannedProgressPct}%</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 11, opacity: 0.6 }}>vs Baseline</div>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>{volVsBaseline}%</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 11, opacity: 0.6 }}>Penyelesaian</div>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>{volCompletion}%</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Biaya */}
+            <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '12px 16px' }}>
+              <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 8, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Biaya Proyek</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                <div>
+                  <div style={{ fontSize: 11, opacity: 0.6 }}>Rencana s/d hari ini</div>
+                  <div style={{ fontSize: 20, fontWeight: 700 }}>{dash?.planned_cost_percent ?? 0}%</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 11, opacity: 0.6 }}>vs Baseline</div>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>{costVsBaseline}%</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 11, opacity: 0.6 }}>Penyelesaian</div>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>{costCompletion}%</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
