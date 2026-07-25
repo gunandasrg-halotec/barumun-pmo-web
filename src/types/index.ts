@@ -373,5 +373,129 @@ export interface FileResource {
   uploaded_at: string; // ISO 8601 DateTime String (misal: "2026-07-16T03:55:58Z")
   file_size: number | null; // Bytes
   download_url: string; // URL string
-  
+
+}
+
+// ─── Heavy Equipment (Penggunaan Alat Berat) ───────────────────────────────────
+
+export interface HeavyEquipment {
+  id: string;
+  code: string;   // Kode Alat Berat
+  type: string;   // Jenis Alat Berat
+  brand: string;  // Merek Alat Berat
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface HeavyEquipmentCostItem {
+  id: string;
+  name: string;
+  default_amount: number | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface HeavyEquipmentActivityOption {
+  value: string;
+  label: string;
+  unit: string | null;
+}
+
+// Mirror App\Enums\HeavyEquipmentActivityType (backend adalah sumber kebenaran).
+export const HEAVY_EQUIPMENT_ACTIVITIES: HeavyEquipmentActivityOption[] = [
+  { value: "ROLING", label: "Roling", unit: null },
+  { value: "PARIT_BATAS", label: "Buat Parit Batas (3m x 3m x 3m)", unit: "m" },
+  { value: "PARIT_LEMBAH", label: "Buat Parit Lembah (1m x 1m x 1m)", unit: "m" },
+  { value: "CHIPPING", label: "Chipping", unit: "pokok" },
+  { value: "TUMBANG_POKOK", label: "Tumbang Pokok Kayu", unit: "pokok" },
+  { value: "BUKA_JALAN", label: "Buka Jalan / Terasan", unit: "m" },
+];
+
+export const AREA_OPTIONS = ["TM", "TBM"] as const;
+
+export interface HeavyEquipmentLogActivity {
+  id?: string;
+  activity_type: string;
+  label?: string;
+  start_time: string | null;
+  end_time: string | null;
+  volume: number | null;
+  unit: string | null;
+}
+
+export interface HeavyEquipmentLogCost {
+  id?: string;
+  cost_item_id: string;
+  name?: string | null;
+  amount: number;
+}
+
+export interface HeavyEquipmentLogPhoto {
+  id: string;
+  original_file_name: string;
+  mime_type: string;
+  photo_date: string | null;
+  download_url: string;
+}
+
+export interface HeavyEquipmentLog {
+  id: string;
+  equipment?: { id: string; code: string; type: string; brand: string } | null;
+  log_date: string;
+  kebun: string;
+  area: string | null;
+  operator: string;
+  kenek: string | null;
+  fuel_liters: number | null;
+  work_morning_start: string | null;
+  work_morning_end: string | null;
+  work_afternoon_start: string | null;
+  work_afternoon_end: string | null;
+  note: string | null;
+  source: string;
+  total_cost: number;
+  activities?: HeavyEquipmentLogActivity[];
+  costs?: HeavyEquipmentLogCost[];
+  photos?: HeavyEquipmentLogPhoto[];
+  created_at?: string;
+}
+
+export interface HeavyEquipmentAnalytics {
+  summary: {
+    total_days: number;
+    total_fuel_liters: number;
+    total_meter: number;
+    total_pokok: number;
+    total_work_hours: number;
+    total_cost: number;
+    cost_per_meter: number | null;
+    cost_per_pokok: number | null;
+    cost_per_day: number | null;
+  };
+  daily_series: Array<{
+    date: string;
+    fuel_liters: number;
+    cost: number;
+    meter: number;
+    pokok: number;
+    cumulative_fuel: number;
+    cumulative_cost: number;
+  }>;
+  by_activity: Array<{
+    activity_type: string;
+    label: string;
+    unit: string | null;
+    total_volume: number;
+    entry_count: number;
+  }>;
+  by_equipment: Array<{
+    equipment: { id: string; code: string; type: string; brand: string } | null;
+    days: number;
+    fuel_liters: number;
+    cost: number;
+  }>;
+  by_cost_item: Array<{ name: string; total: number }>;
 }

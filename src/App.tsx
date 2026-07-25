@@ -14,12 +14,17 @@ import SCurvePage from "./pages/analytics/SCurvePage";
 import CostAnalysisPage from "./pages/analytics/CostAnalysisPage";
 import ReportsPage from "./pages/reports/ReportsPage";
 import AdminPage from "./pages/admin/AdminPage";
+import PublicHeavyEquipmentLogPage from "./pages/public/PublicHeavyEquipmentLogPage";
+import MasterAlatBeratPage from "./pages/master/MasterAlatBeratPage";
+import HeavyEquipmentUsagePage from "./pages/heavy-equipment/HeavyEquipmentUsagePage";
 
 export default function App() {
   return (
     <Routes>
       {/* Public */}
       <Route path="/login" element={<LoginPage />} />
+      {/* Public — laporan alat berat dari lapangan (tanpa login, proteksi PIN) */}
+      <Route path="/lapor-alat-berat" element={<PublicHeavyEquipmentLogPage />} />
 
       {/* Protected — all authenticated users */}
       <Route
@@ -57,6 +62,12 @@ export default function App() {
           element={<CostAnalysisPage />}
         />
         <Route path="projects/:projectId/reports" element={<ReportsPage />} />
+
+        {/* Penggunaan Alat Berat — analitik + data mentah */}
+        <Route path="penggunaan-alat-berat" element={<HeavyEquipmentUsagePage />} />
+
+        {/* Master alat berat + item biaya — guarded inside page */}
+        <Route path="master/alat-berat" element={<MasterAlatBeratPage />} />
 
         {/* Admin — guarded inside AdminPage */}
         <Route path="admin" element={<AdminPage />} />

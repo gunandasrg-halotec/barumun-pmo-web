@@ -189,7 +189,7 @@ function NotificationBell() {
 }
 
 export default function Sidebar() {
-  const { user, logout, isAdminSistem, isDireksi } = useAuth();
+  const { user, logout, isAdminSistem, isDireksi, isFinance, isProjectManager } = useAuth();
   const { projectId } = useParams();
 
   const initials = user?.full_name
@@ -225,6 +225,14 @@ export default function Sidebar() {
             <div className="menu-group-title">Reports</div>
             <NavBtn to={`/projects/${projectId}/reports`} label="Reports" sub="Generate laporan" />
           </>
+        )}
+
+        <div className="menu-group-title">Operasional</div>
+        {(isAdminSistem() || isDireksi() || isProjectManager() || isFinance()) && (
+          <NavBtn to="/penggunaan-alat-berat" label="Penggunaan Alat Berat" sub="Analitik & data alat berat" />
+        )}
+        {(isAdminSistem() || isFinance()) && (
+          <NavBtn to="/master/alat-berat" label="Alat Berat" sub="Master unit & item biaya" />
         )}
 
         <div className="menu-group-title">System</div>
