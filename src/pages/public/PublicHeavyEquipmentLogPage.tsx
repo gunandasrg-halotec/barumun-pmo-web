@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { heavyEquipmentPublicService } from "../../services/heavyEquipmentPublicService";
 import { extractError, formatNumber } from "../../utils/format";
 import {
@@ -21,6 +21,17 @@ interface CostState {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+const KEBUN_OPTIONS = ["Kota Pinang", "Binanga", "Janji Matogu", "Sosa"];
+
+// Pilihan jam 05:00–20:00 tiap 30 menit
+const TIME_OPTIONS: string[] = (() => {
+  const out: string[] = [];
+  for (let h = 5; h <= 20; h++) {
+    for (const m of ["00", "30"]) out.push(`${String(h).padStart(2, "0")}:${m}`);
+  }
+  return out;
+})();
+
 export default function PublicHeavyEquipmentLogPage() {
   const [pin, setPin] = useState("");
   const [verified, setVerified] = useState(false);
@@ -33,15 +44,15 @@ export default function PublicHeavyEquipmentLogPage() {
   const [form, setForm] = useState({
     heavy_equipment_id: "",
     log_date: todayISO(),
-    kebun: "",
+    kebun: "Sosa",
     area: "TM",
     operator: "",
     kenek: "",
     fuel_liters: "",
-    work_morning_start: "",
-    work_morning_end: "",
-    work_afternoon_start: "",
-    work_afternoon_end: "",
+    work_morning_start: "08:00",
+    work_morning_end: "12:00",
+    work_afternoon_start: "13:00",
+    work_afternoon_end: "17:00",
     note: "",
   });
 
@@ -56,6 +67,9 @@ export default function PublicHeavyEquipmentLogPage() {
   );
   const [costs, setCosts] = useState<Record<string, CostState>>({});
   const [photos, setPhotos] = useState<File[]>([]);
+  const [viewPhoto, setViewPhoto] = useState<string | null>(null);
+  const previews = useMemo(() => photos.map((f) => URL.createObjectURL(f)), [photos]);
+  useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -151,10 +165,10 @@ export default function PublicHeavyEquipmentLogPage() {
       operator: "",
       kenek: "",
       fuel_liters: "",
-      work_morning_start: "",
-      work_morning_end: "",
-      work_afternoon_start: "",
-      work_afternoon_end: "",
+      work_morning_start: "08:00",
+      work_morning_end: "12:00",
+      work_afternoon_start: "13:00",
+      work_afternoon_end: "17:00",
       note: "",
     }));
     setActivities(
@@ -305,7 +319,11 @@ export default function PublicHeavyEquipmentLogPage() {
             </div>
             <div className="field">
               <label className="required">Kebun</label>
-              <input value={form.kebun} onChange={(e) => set("kebun", e.target.value)} required />
+              <select value={form.kebun} onChange={(e) => set("kebun", e.target.value)} required style={{ width: "100%" }}>
+                {KEBUN_OPTIONS.map((k) => (
+                  <option key={k} value={k}>{k}</option>
+                ))}
+              </select>
             </div>
             <div className="field">
               <label>BBM (liter)</label>
@@ -331,22 +349,22 @@ export default function PublicHeavyEquipmentLogPage() {
           <div>
             <label style={{ fontSize: 13, fontWeight: 500, color: "var(--green-800)" }}>Jam kerja</label>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 6 }}>
-              <div className="field">
-                <label>Pagi — mulai</label>
-                <input type="time" value={form.work_morning_start} onChange={(e) => set("work_morning_start", e.target.value)} />
-              </div>
-              <div className="field">
-                <label>Pagi — selesai</label>
-                <input type="time" value={form.work_morning_end} onChange={(e) => set("work_morning_end", e.target.value)} />
-              </div>
-              <div className="field">
-                <label>Sore — mulai</label>
-                <input type="time" value={form.work_afternoon_start} onChange={(e) => set("work_afternoon_start", e.target.value)} />
-              </div>
-              <div className="field">
-                <label>Sore — selesai</label>
-                <input type="time" value={form.work_afternoon_end} onChange={(e) => set("work_afternoon_end", e.target.value)} />
-              </div>
+              {([
+                ["Pagi — mulai", "work_morning_start"],
+                ["Pagi — selesai", "work_morning_end"],
+                ["Sore — mulai", "work_afternoon_start"],
+                ["Sore — selesai", "work_afternoon_end"],
+              ] as const).map(([label, key]) => (
+                <div className="field" key={key}>
+                  <label>{label}</label>
+                  <select value={form[key]} onChange={(e) => set(key, e.target.value)} style={{ width: "100%" }}>
+                    <option value="">—</option>
+                    {TIME_OPTIONS.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -459,7 +477,7 @@ export default function PublicHeavyEquipmentLogPage() {
 
           {/* Keterangan */}
           <div className="field">
-            <label>Keterangan</label>
+            <label>Keterangan/Masalah</label>
             <textarea rows={2} value={form.note} onChange={(e) => set("note", e.target.value)} style={{ width: "100%" }} />
           </div>
 
@@ -470,11 +488,37 @@ export default function PublicHeavyEquipmentLogPage() {
               type="file"
               accept="image/*"
               multiple
-              onChange={(e) => setPhotos(Array.from(e.target.files ?? []))}
+              onChange={(e) => {
+                const picked = Array.from(e.target.files ?? []);
+                if (picked.length) setPhotos((prev) => [...prev, ...picked]);
+                e.target.value = "";
+              }}
             />
+            {previews.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                {previews.map((url, i) => (
+                  <div key={url} style={{ position: "relative" }}>
+                    <img
+                      src={url}
+                      alt={`Foto ${i + 1}`}
+                      onClick={() => setViewPhoto(url)}
+                      style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)", cursor: "pointer" }}
+                    />
+                    <button
+                      type="button"
+                      aria-label="Hapus foto"
+                      onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
+                      style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "none", background: "var(--danger)", color: "#fff", fontSize: 13, lineHeight: "20px", cursor: "pointer", padding: 0 }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             {photos.length > 0 && (
-              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-                {photos.length} foto dipilih
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
+                {photos.length} foto dipilih · ketuk untuk memperbesar
               </div>
             )}
           </div>
@@ -484,6 +528,45 @@ export default function PublicHeavyEquipmentLogPage() {
           </button>
         </form>
       </div>
+
+      {viewPhoto && (
+        <div
+          onClick={() => setViewPhoto(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.85)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 16,
+          }}
+        >
+          <img src={viewPhoto} alt="Foto" style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 8 }} />
+          <button
+            type="button"
+            aria-label="Tutup"
+            onClick={() => setViewPhoto(null)}
+            style={{
+              position: "fixed",
+              top: 16,
+              right: 16,
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              border: "none",
+              background: "rgba(255,255,255,0.9)",
+              fontSize: 22,
+              lineHeight: "40px",
+              cursor: "pointer",
+              padding: 0,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
     </div>
   );
 }
