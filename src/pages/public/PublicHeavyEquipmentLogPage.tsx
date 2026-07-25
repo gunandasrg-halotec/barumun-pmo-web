@@ -78,7 +78,7 @@ const costsFromItems = (items: HeavyEquipmentCostItem[]): Record<string, CostSta
   );
 
 function buildFormData(
-  f: FormShape,
+  f: Record<string, string>,
   acts: Record<string, ActivityState>,
   cs: Record<string, CostState>,
   ph: File[]
