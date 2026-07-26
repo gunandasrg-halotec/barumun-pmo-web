@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ResponsiveContainer,
@@ -14,7 +14,12 @@ import {
 } from "recharts";
 import { heavyEquipmentService } from "../../services/heavyEquipmentService";
 import { extractError, formatNumber, formatDate } from "../../utils/format";
-import type { HeavyEquipment, HeavyEquipmentLog } from "../../types";
+import {
+  HEAVY_EQUIPMENT_ACTIVITIES,
+  type HeavyEquipment,
+  type HeavyEquipmentLog,
+  type HeavyEquipmentLogActivity,
+} from "../../types";
 
 const TABS = ["Analitik", "Data Mentah"];
 
@@ -23,6 +28,26 @@ const firstOfMonthISO = () => {
   return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
 };
 const todayISO = () => new Date().toISOString().slice(0, 10);
+
+function shortDate(iso?: string | null): string {
+  if (!iso) return "";
+  const parts = iso.split("-");
+  if (parts.length < 3) return iso;
+  return `${parts[2]}/${parts[1]}`;
+}
+
+/** [label mulai, label selesai] — untuk Roling menampilkan tanggal bila lintas hari. */
+function activityTimeLabels(a: HeavyEquipmentLogActivity, logDateIso: string): [string, string] {
+  if (a.activity_type === "ROLING") {
+    const sd = a.start_date || logDateIso;
+    const ed = a.end_date || sd;
+    const crossDay = ed !== sd;
+    const start = a.start_time ? `${crossDay ? shortDate(sd) + " " : ""}${a.start_time}` : "—";
+    const end = a.end_time ? `${crossDay ? shortDate(ed) + " " : ""}${a.end_time}` : "—";
+    return [start, end];
+  }
+  return [a.start_time || "—", a.end_time || "—"];
+}
 
 export default function HeavyEquipmentUsagePage() {
   const [activeTab, setActiveTab] = useState(TABS[0]);
@@ -49,7 +74,7 @@ export default function HeavyEquipmentUsagePage() {
 
   const logsQ = useQuery({
     queryKey: ["heavy-equipment-logs", filters],
-    queryFn: () => heavyEquipmentService.listLogs({ ...filters, limit: 100 }),
+    queryFn: () => heavyEquipmentService.listLogs({ ...filters, limit: 200 }),
     enabled: activeTab === "Data Mentah",
   });
   const logs: HeavyEquipmentLog[] = (logsQ.data as any)?.data ?? [];
@@ -57,17 +82,33 @@ export default function HeavyEquipmentUsagePage() {
   const setF = (k: keyof typeof filters, v: string) => setFilters((p) => ({ ...p, [k]: v }));
 
   function exportCsv() {
-    const header = ["Tanggal", "Kode Alat", "Kebun", "Area", "Operator", "Kenek", "BBM (L)", "Total Biaya"];
-    const rows = logs.map((l) => [
-      l.log_date,
-      l.equipment?.code ?? "",
-      l.kebun,
-      l.area ?? "",
-      l.operator,
-      l.kenek ?? "",
-      l.fuel_liters ?? "",
-      l.total_cost,
-    ]);
+    const header = [
+      "Jenis Pekerjaan", "Tanggal", "Kode Alat", "Kebun", "Area", "Operator", "Kenek",
+      "BBM (L)", "Mulai", "Selesai", "Hasil", "Satuan", "Total Biaya Hari Itu", "Keterangan",
+    ];
+    const rows: (string | number)[][] = [];
+    logs.forEach((l) => {
+      const acts = l.activities && l.activities.length > 0 ? l.activities : [null];
+      acts.forEach((a) => {
+        const [start, end] = a ? activityTimeLabels(a, l.log_date) : ["", ""];
+        rows.push([
+          a?.label ?? a?.activity_type ?? "—",
+          l.log_date,
+          l.equipment?.code ?? "",
+          l.kebun,
+          l.area ?? "",
+          l.operator,
+          l.kenek ?? "",
+          l.fuel_liters ?? "",
+          start,
+          end,
+          a?.volume ?? "",
+          a?.unit ?? "",
+          l.total_cost,
+          l.note ?? "",
+        ]);
+      });
+    });
     const csv = [header, ...rows]
       .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
       .join("\n");
@@ -89,7 +130,6 @@ export default function HeavyEquipmentUsagePage() {
           </div>
         </div>
 
-        {/* Filter */}
         <div className="toolbar" style={{ marginTop: 12, flexWrap: "wrap", gap: 10 }}>
           <div className="field" style={{ margin: 0 }}>
             <label style={{ fontSize: 11 }}>Dari tanggal</label>
@@ -124,7 +164,6 @@ export default function HeavyEquipmentUsagePage() {
         <div className="stretch" />
       </div>
 
-      {/* ── Analitik ── */}
       {activeTab === "Analitik" && (
         analyticsQ.isLoading ? (
           <div className="section-card glass"><div className="loading-state">Memuat analitik...</div></div>
@@ -135,58 +174,147 @@ export default function HeavyEquipmentUsagePage() {
         ) : null
       )}
 
-      {/* ── Data Mentah ── */}
       {activeTab === "Data Mentah" && (
-        <div className="section-card glass">
-          <div className="section-title" style={{ marginBottom: 12 }}>
-            <div><h4 style={{ margin: 0 }}>Data mentah laporan harian</h4></div>
-            <button className="btn secondary" onClick={exportCsv} disabled={logs.length === 0}>Export CSV</button>
-          </div>
-          {logsQ.isLoading ? (
-            <div className="loading-state">Memuat data...</div>
-          ) : logsQ.error ? (
-            <div className="danger-box">{extractError(logsQ.error)}</div>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Tanggal</th>
-                    <th>Alat</th>
-                    <th>Kebun</th>
-                    <th>Area</th>
-                    <th>Operator</th>
-                    <th style={{ textAlign: "right" }}>BBM (L)</th>
-                    <th style={{ textAlign: "center" }}>Pekerjaan</th>
-                    <th style={{ textAlign: "right" }}>Total Biaya</th>
-                    <th style={{ textAlign: "center" }}>Foto</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {logs.map((l) => (
-                    <tr key={l.id} className="clickable" style={{ cursor: "pointer" }} onClick={() => setDetail(l)}>
-                      <td style={{ fontSize: 12 }}>{formatDate(l.log_date)}</td>
-                      <td style={{ fontSize: 12, fontWeight: 600 }}>{l.equipment?.code ?? "—"}</td>
-                      <td style={{ fontSize: 12 }}>{l.kebun}</td>
-                      <td style={{ fontSize: 12 }}>{l.area ?? "—"}</td>
-                      <td style={{ fontSize: 12 }}>{l.operator}</td>
-                      <td style={{ fontSize: 12, textAlign: "right" }}>{l.fuel_liters != null ? formatNumber(l.fuel_liters, 0) : "—"}</td>
-                      <td style={{ fontSize: 12, textAlign: "center" }}>{l.activities?.length ?? 0}</td>
-                      <td style={{ fontSize: 12, textAlign: "right" }}>Rp {formatNumber(l.total_cost, 0)}</td>
-                      <td style={{ fontSize: 12, textAlign: "center" }}>{l.photos?.length ?? 0}</td>
-                    </tr>
-                  ))}
-                  {logs.length === 0 && (
-                    <tr><td colSpan={9} className="empty-state">Tidak ada data pada rentang ini.</td></tr>
-                  )}
-                </tbody>
-              </table>
+        <div>
+          <div className="section-card glass" style={{ marginBottom: 18 }}>
+            <div className="section-title" style={{ marginBottom: 0 }}>
+              <div>
+                <h4 style={{ margin: 0 }}>Data mentah laporan harian</h4>
+                <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>
+                  Satu tabel per jenis pekerjaan, kolom mengikuti format formulir lapangan.
+                </p>
+              </div>
+              <button className="btn secondary" onClick={exportCsv} disabled={logs.length === 0}>Export CSV</button>
             </div>
+          </div>
+
+          {logsQ.isLoading ? (
+            <div className="section-card glass"><div className="loading-state">Memuat data...</div></div>
+          ) : logsQ.error ? (
+            <div className="section-card glass"><div className="danger-box">{extractError(logsQ.error)}</div></div>
+          ) : (
+            <RawDataByActivity logs={logs} onSelectLog={setDetail} />
           )}
         </div>
       )}
 
       {detail && <LogDetailModal log={detail} onClose={() => setDetail(null)} />}
+    </div>
+  );
+}
+
+// ─── Data mentah: satu tabel per jenis pekerjaan ───────────────────────────
+
+function RawDataByActivity({
+  logs,
+  onSelectLog,
+}: {
+  logs: HeavyEquipmentLog[];
+  onSelectLog: (l: HeavyEquipmentLog) => void;
+}) {
+  // Kumulatif BBM per alat, dihitung sekali dari seluruh log (bukan per tabel pekerjaan)
+  // agar hari dengan >1 pekerjaan tidak menghitung BBM dua kali.
+  const fuelCumByLogId = useMemo(() => {
+    const sorted = [...logs].sort((a, b) => a.log_date.localeCompare(b.log_date) || a.id.localeCompare(b.id));
+    const running: Record<string, number> = {};
+    const out: Record<string, number> = {};
+    sorted.forEach((l) => {
+      const eqId = l.equipment?.id ?? "?";
+      running[eqId] = (running[eqId] ?? 0) + (l.fuel_liters ?? 0);
+      out[l.id] = running[eqId];
+    });
+    return out;
+  }, [logs]);
+
+  const tables = HEAVY_EQUIPMENT_ACTIVITIES.map((actType) => {
+    type Row = { log: HeavyEquipmentLog; activity: HeavyEquipmentLogActivity; cumVolume: number };
+    const rows: Row[] = [];
+    const sortedLogs = [...logs].sort((a, b) => a.log_date.localeCompare(b.log_date) || a.id.localeCompare(b.id));
+    const runningVolume: Record<string, number> = {};
+
+    sortedLogs.forEach((l) => {
+      const act = (l.activities ?? []).find((a) => a.activity_type === actType.value);
+      if (!act) return;
+      const eqId = l.equipment?.id ?? "?";
+      runningVolume[eqId] = (runningVolume[eqId] ?? 0) + (act.volume ?? 0);
+      rows.push({ log: l, activity: act, cumVolume: runningVolume[eqId] });
+    });
+
+    return { actType, rows };
+  }).filter((t) => t.rows.length > 0);
+
+  if (tables.length === 0) {
+    return <div className="section-card glass"><div className="empty-state">Tidak ada data pada rentang ini.</div></div>;
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+      {tables.map(({ actType, rows }) => (
+        <div key={actType.value} className="section-card glass">
+          <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>
+            {actType.label}
+            {actType.unit && <span style={{ fontWeight: 400, color: "var(--muted)" }}> ({actType.unit})</span>}
+          </h4>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Kebun</th>
+                  <th>Area</th>
+                  <th>Operator</th>
+                  <th>Kenek</th>
+                  <th style={{ textAlign: "right" }}>BBM (L)</th>
+                  <th style={{ textAlign: "right" }}>BBM s/d</th>
+                  <th>Pagi Mulai</th>
+                  <th>Pagi Selesai</th>
+                  <th>Sore Mulai</th>
+                  <th>Sore Selesai</th>
+                  <th>Mulai</th>
+                  <th>Selesai</th>
+                  {actType.unit && <th style={{ textAlign: "right" }}>Hasil</th>}
+                  {actType.unit && <th style={{ textAlign: "right" }}>s/d</th>}
+                  <th>Keterangan</th>
+                  <th style={{ textAlign: "center" }}>Foto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(({ log, activity, cumVolume }) => {
+                  const [start, end] = activityTimeLabels(activity, log.log_date);
+                  return (
+                    <tr
+                      key={log.id + activity.activity_type}
+                      className="clickable"
+                      style={{ cursor: "pointer" }}
+                      onClick={() => onSelectLog(log)}
+                    >
+                      <td style={{ fontSize: 12 }}>{formatDate(log.log_date)}</td>
+                      <td style={{ fontSize: 12 }}>{log.kebun}</td>
+                      <td style={{ fontSize: 12 }}>{log.area ?? "—"}</td>
+                      <td style={{ fontSize: 12 }}>{log.operator}</td>
+                      <td style={{ fontSize: 12 }}>{log.kenek ?? "—"}</td>
+                      <td style={{ fontSize: 12, textAlign: "right" }}>{log.fuel_liters != null ? formatNumber(log.fuel_liters, 0) : "—"}</td>
+                      <td style={{ fontSize: 12, textAlign: "right" }}>{formatNumber(fuelCumByLogId[log.id] ?? 0, 0)}</td>
+                      <td style={{ fontSize: 12 }}>{log.work_morning_start ?? "—"}</td>
+                      <td style={{ fontSize: 12 }}>{log.work_morning_end ?? "—"}</td>
+                      <td style={{ fontSize: 12 }}>{log.work_afternoon_start ?? "—"}</td>
+                      <td style={{ fontSize: 12 }}>{log.work_afternoon_end ?? "—"}</td>
+                      <td style={{ fontSize: 12 }}>{start}</td>
+                      <td style={{ fontSize: 12 }}>{end}</td>
+                      {actType.unit && (
+                        <td style={{ fontSize: 12, textAlign: "right" }}>{activity.volume != null ? formatNumber(activity.volume, 0) : "—"}</td>
+                      )}
+                      {actType.unit && <td style={{ fontSize: 12, textAlign: "right" }}>{formatNumber(cumVolume, 0)}</td>}
+                      <td style={{ fontSize: 12, maxWidth: 160 }}>{log.note ?? "—"}</td>
+                      <td style={{ fontSize: 12, textAlign: "center" }}>{log.photos?.length ?? 0}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -198,13 +326,13 @@ function AnalyticsView({ analytics }: { analytics: any }) {
   const kpis = [
     { label: "Hari kerja", value: formatNumber(s.total_days, 0) },
     { label: "BBM total (L)", value: formatNumber(s.total_fuel_liters, 0) },
-    { label: "Total meter", value: formatNumber(s.total_meter, 0) },
-    { label: "Total pokok", value: formatNumber(s.total_pokok, 0) },
     { label: "Jam kerja", value: formatNumber(s.total_work_hours, 1) },
     { label: "Biaya operasional", value: `Rp ${formatNumber(s.total_cost, 0)}` },
-    { label: "Biaya / meter", value: s.cost_per_meter != null ? `Rp ${formatNumber(s.cost_per_meter, 0)}` : "—" },
-    { label: "Biaya / hari", value: s.cost_per_day != null ? `Rp ${formatNumber(s.cost_per_day, 0)}` : "—" },
   ];
+
+  const activitiesWithData = (analytics.by_activity as any[]).filter(
+    (a) => a.total_volume > 0 || a.total_hours > 0
+  );
 
   return (
     <>
@@ -219,17 +347,94 @@ function AnalyticsView({ analytics }: { analytics: any }) {
         </div>
       </div>
 
+      {/* Ringkasan per jenis pekerjaan: hasil kerja, jam kerja, biaya per satuan */}
       <div className="section-card glass" style={{ marginBottom: 18 }}>
-        <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>Volume per jenis pekerjaan</h4>
+        <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>Ringkasan per jenis pekerjaan</h4>
+        {activitiesWithData.length === 0 ? (
+          <div className="empty-state">Belum ada data pekerjaan pada rentang ini.</div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Jenis Pekerjaan</th>
+                  <th style={{ textAlign: "right" }}>Hasil Kerja</th>
+                  <th style={{ textAlign: "right" }}>Jam Kerja</th>
+                  <th style={{ textAlign: "right" }}>Biaya</th>
+                  <th style={{ textAlign: "right" }}>Biaya / Satuan</th>
+                  <th style={{ textAlign: "right" }}>Biaya / Jam</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activitiesWithData.map((a) => (
+                  <tr key={a.activity_type}>
+                    <td style={{ fontSize: 13, fontWeight: 500 }}>{a.label}</td>
+                    <td style={{ fontSize: 13, textAlign: "right" }}>
+                      {a.unit ? `${formatNumber(a.total_volume, 0)} ${a.unit}` : "—"}
+                    </td>
+                    <td style={{ fontSize: 13, textAlign: "right" }}>{formatNumber(a.total_hours, 1)} jam</td>
+                    <td style={{ fontSize: 13, textAlign: "right" }}>Rp {formatNumber(a.total_cost, 0)}</td>
+                    <td style={{ fontSize: 13, textAlign: "right" }}>
+                      {a.cost_per_unit != null ? `Rp ${formatNumber(a.cost_per_unit, 0)} / ${a.unit}` : "—"}
+                    </td>
+                    <td style={{ fontSize: 13, textAlign: "right" }}>
+                      {a.cost_per_hour != null ? `Rp ${formatNumber(a.cost_per_hour, 0)}` : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 10, marginBottom: 0 }}>
+          Biaya per jenis pekerjaan dialokasikan dari biaya operasional harian, sebanding porsi jam kerja pekerjaan tersebut pada hari itu.
+        </p>
+      </div>
+
+      <div className="section-card glass" style={{ marginBottom: 18 }}>
+        <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>Hasil kerja per jenis pekerjaan</h4>
         <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={analytics.by_activity} margin={{ top: 8, right: 8, left: 0, bottom: 40 }}>
+          <BarChart data={activitiesWithData} margin={{ top: 8, right: 8, left: 0, bottom: 40 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" interval={0} height={60} />
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip formatter={(v: any) => formatNumber(Number(v), 0)} />
-            <Bar dataKey="total_volume" name="Volume" fill="#1D9E75" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="total_volume" name="Hasil kerja" fill="#1D9E75" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
+      </div>
+
+      <div className="section-card glass" style={{ marginBottom: 18 }}>
+        <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>Jam kerja per jenis pekerjaan</h4>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={activitiesWithData} layout="vertical" margin={{ top: 8, right: 16, left: 40, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 10 }} />
+            <YAxis type="category" dataKey="label" tick={{ fontSize: 10 }} width={140} />
+            <Tooltip formatter={(v: any) => `${formatNumber(Number(v), 1)} jam`} />
+            <Bar dataKey="total_hours" name="Jam kerja" fill="#378ADD" radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="section-card glass" style={{ marginBottom: 18 }}>
+        <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>Biaya per satuan pekerjaan</h4>
+        {activitiesWithData.filter((a) => a.cost_per_unit != null).length === 0 ? (
+          <div className="empty-state">Tidak ada pekerjaan bersatuan (mis. Roling tidak dihitung per satuan).</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart
+              data={activitiesWithData.filter((a) => a.cost_per_unit != null)}
+              margin={{ top: 8, right: 8, left: 0, bottom: 40 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" interval={0} height={60} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(v: any) => `Rp ${formatNumber(Number(v), 0)}`} />
+              <Bar dataKey="cost_per_unit" name="Biaya / satuan" fill="#BA7517" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       <div className="section-card glass" style={{ marginBottom: 18 }}>
@@ -296,16 +501,19 @@ function LogDetailModal({ log, onClose }: { log: HeavyEquipmentLog; onClose: () 
             <table>
               <thead><tr><th>Jenis</th><th>Mulai</th><th>Selesai</th><th style={{ textAlign: "right" }}>Hasil</th></tr></thead>
               <tbody>
-                {(log.activities ?? []).map((a) => (
-                  <tr key={a.id ?? a.activity_type}>
-                    <td style={{ fontSize: 12 }}>{a.label ?? a.activity_type}</td>
-                    <td style={{ fontSize: 12 }}>{a.start_time ?? "—"}</td>
-                    <td style={{ fontSize: 12 }}>{a.end_time ?? "—"}</td>
-                    <td style={{ fontSize: 12, textAlign: "right" }}>
-                      {a.volume != null ? `${formatNumber(a.volume, 0)} ${a.unit ?? ""}` : "—"}
-                    </td>
-                  </tr>
-                ))}
+                {(log.activities ?? []).map((a) => {
+                  const [start, end] = activityTimeLabels(a, log.log_date);
+                  return (
+                    <tr key={a.id ?? a.activity_type}>
+                      <td style={{ fontSize: 12 }}>{a.label ?? a.activity_type}</td>
+                      <td style={{ fontSize: 12 }}>{start}</td>
+                      <td style={{ fontSize: 12 }}>{end}</td>
+                      <td style={{ fontSize: 12, textAlign: "right" }}>
+                        {a.volume != null ? `${formatNumber(a.volume, 0)} ${a.unit ?? ""}` : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
                 {(log.activities ?? []).length === 0 && <tr><td colSpan={4} className="empty-state">Tidak ada pekerjaan.</td></tr>}
               </tbody>
             </table>

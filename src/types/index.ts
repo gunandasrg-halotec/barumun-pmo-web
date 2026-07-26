@@ -420,6 +420,8 @@ export interface HeavyEquipmentLogActivity {
   id?: string;
   activity_type: string;
   label?: string;
+  start_date?: string | null;
+  end_date?: string | null;
   start_time: string | null;
   end_time: string | null;
   volume: number | null;
@@ -489,7 +491,11 @@ export interface HeavyEquipmentAnalytics {
     label: string;
     unit: string | null;
     total_volume: number;
+    total_hours: number;
     entry_count: number;
+    total_cost: number;
+    cost_per_unit: number | null;
+    cost_per_hour: number | null;
   }>;
   by_equipment: Array<{
     equipment: { id: string; code: string; type: string; brand: string } | null;

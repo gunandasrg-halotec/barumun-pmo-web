@@ -17,6 +17,8 @@ import {
 
 interface ActivityState {
   enabled: boolean;
+  start_date: string;
+  end_date: string;
   start_time: string;
   end_time: string;
   volume: string;
@@ -54,7 +56,10 @@ const LS_LISTS = "he_field_lists";
 
 const emptyActivities = (): Record<string, ActivityState> =>
   Object.fromEntries(
-    HEAVY_EQUIPMENT_ACTIVITIES.map((a) => [a.value, { enabled: false, start_time: "", end_time: "", volume: "" }])
+    HEAVY_EQUIPMENT_ACTIVITIES.map((a) => [
+      a.value,
+      { enabled: false, start_date: "", end_date: "", start_time: "", end_time: "", volume: "" },
+    ])
   );
 
 const defaultForm = (): FormShape => ({
@@ -92,6 +97,8 @@ function buildFormData(
     const st = acts[a.value];
     if (!st?.enabled) return;
     fd.append(`activities[${ai}][activity_type]`, a.value);
+    if (st.start_date) fd.append(`activities[${ai}][start_date]`, st.start_date);
+    if (st.end_date) fd.append(`activities[${ai}][end_date]`, st.end_date);
     if (st.start_time) fd.append(`activities[${ai}][start_time]`, st.start_time);
     if (st.end_time) fd.append(`activities[${ai}][end_time]`, st.end_time);
     if (st.volume !== "") fd.append(`activities[${ai}][volume]`, st.volume);
@@ -564,30 +571,66 @@ export default function PublicHeavyEquipmentLogPage() {
                         <input
                           type="checkbox"
                           checked={st.enabled}
-                          onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], enabled: e.target.checked } }))}
+                          onChange={(e) =>
+                            setActivities((p) => {
+                              const next = { ...p[a.value], enabled: e.target.checked };
+                              if (a.value === "ROLING" && e.target.checked && !next.start_date) {
+                                next.start_date = form.log_date;
+                                next.end_date = form.log_date;
+                              }
+                              return { ...p, [a.value]: next };
+                            })
+                          }
                           style={{ width: "auto" }}
                         />
                         {a.label}
                         {a.unit && <span style={{ color: "var(--muted)", fontWeight: 400 }}>({a.unit})</span>}
                       </label>
-                      {st.enabled && (
-                        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                          <div className="field" style={{ flex: 1 }}>
-                            <label style={{ fontSize: 11 }}>Mulai</label>
-                            <input type="time" value={st.start_time} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], start_time: e.target.value } }))} />
-                          </div>
-                          <div className="field" style={{ flex: 1 }}>
-                            <label style={{ fontSize: 11 }}>Selesai</label>
-                            <input type="time" value={st.end_time} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], end_time: e.target.value } }))} />
-                          </div>
-                          {a.unit && (
-                            <div className="field" style={{ width: 90 }}>
-                              <label style={{ fontSize: 11 }}>Hasil</label>
-                              <input type="number" step="0.01" min="0" value={st.volume} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], volume: e.target.value } }))} />
+                      {st.enabled &&
+                        (a.value === "ROLING" ? (
+                          <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+                            <div style={{ fontSize: 11, color: "var(--muted)" }}>
+                              Roling bisa lintas hari — isi tanggal &amp; jam mulai dan selesai.
                             </div>
-                          )}
-                        </div>
-                      )}
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <div className="field" style={{ flex: 1 }}>
+                                <label style={{ fontSize: 11 }}>Tgl mulai</label>
+                                <input type="date" value={st.start_date} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], start_date: e.target.value } }))} />
+                              </div>
+                              <div className="field" style={{ flex: 1 }}>
+                                <label style={{ fontSize: 11 }}>Jam mulai</label>
+                                <input type="time" value={st.start_time} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], start_time: e.target.value } }))} />
+                              </div>
+                            </div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <div className="field" style={{ flex: 1 }}>
+                                <label style={{ fontSize: 11 }}>Tgl selesai</label>
+                                <input type="date" value={st.end_date} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], end_date: e.target.value } }))} />
+                              </div>
+                              <div className="field" style={{ flex: 1 }}>
+                                <label style={{ fontSize: 11 }}>Jam selesai</label>
+                                <input type="time" value={st.end_time} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], end_time: e.target.value } }))} />
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                            <div className="field" style={{ flex: 1 }}>
+                              <label style={{ fontSize: 11 }}>Mulai</label>
+                              <input type="time" value={st.start_time} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], start_time: e.target.value } }))} />
+                            </div>
+                            <div className="field" style={{ flex: 1 }}>
+                              <label style={{ fontSize: 11 }}>Selesai</label>
+                              <input type="time" value={st.end_time} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], end_time: e.target.value } }))} />
+                            </div>
+                            {a.unit && (
+                              <div className="field" style={{ width: 90 }}>
+                                <label style={{ fontSize: 11 }}>Hasil</label>
+                                <input type="number" step="0.01" min="0" value={st.volume} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], volume: e.target.value } }))} />
+                              </div>
+                            )}
+                          </div>
+                        ))}
                     </div>
                   );
                 })}
