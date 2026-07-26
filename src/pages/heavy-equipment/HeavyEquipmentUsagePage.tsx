@@ -4,7 +4,7 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  LineChart,
+  ComposedChart,
   Line,
   XAxis,
   YAxis,
@@ -193,12 +193,80 @@ export default function HeavyEquipmentUsagePage() {
           ) : logsQ.error ? (
             <div className="section-card glass"><div className="danger-box">{extractError(logsQ.error)}</div></div>
           ) : (
-            <RawDataByActivity logs={logs} onSelectLog={setDetail} />
+            <>
+              <BbmHistoryTable logs={logs} />
+              <RawDataByActivity logs={logs} onSelectLog={setDetail} />
+            </>
           )}
         </div>
       )}
 
       {detail && <LogDetailModal log={detail} onClose={() => setDetail(null)} />}
+    </div>
+  );
+}
+
+// ─── Data mentah: history penggunaan BBM (dikelompokkan per alat) ──────────
+
+function BbmHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
+  const groups = useMemo(() => {
+    const byEquip = new Map<string, { equipment: HeavyEquipmentLog["equipment"]; logs: HeavyEquipmentLog[] }>();
+    logs.forEach((l) => {
+      const eqId = l.equipment?.id ?? "?";
+      if (!byEquip.has(eqId)) byEquip.set(eqId, { equipment: l.equipment ?? null, logs: [] });
+      byEquip.get(eqId)!.logs.push(l);
+    });
+    return Array.from(byEquip.values())
+      .map((g) => ({
+        equipment: g.equipment,
+        rows: [...g.logs]
+          .sort((a, b) => a.log_date.localeCompare(b.log_date) || a.id.localeCompare(b.id))
+          .reduce<{ date: string; usage: number; cumulative: number }[]>((acc, l) => {
+            const usage = l.fuel_liters ?? 0;
+            const prevCum = acc.length > 0 ? acc[acc.length - 1].cumulative : 0;
+            acc.push({ date: l.log_date, usage, cumulative: prevCum + usage });
+            return acc;
+          }, []),
+      }))
+      .sort((a, b) => (a.equipment?.code ?? "").localeCompare(b.equipment?.code ?? ""));
+  }, [logs]);
+
+  return (
+    <div className="section-card glass" style={{ marginBottom: 18 }}>
+      <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>History Penggunaan BBM</h4>
+      {groups.length === 0 ? (
+        <div className="empty-state">Belum ada data pada rentang ini.</div>
+      ) : (
+        <div style={{ display: "grid", gap: 16 }}>
+          {groups.map(({ equipment, rows }) => (
+            <div key={equipment?.id ?? "?"}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "var(--muted)", marginBottom: 6 }}>
+                {equipment ? `${equipment.code} · ${equipment.type} · ${equipment.brand}` : "Alat tidak diketahui"}
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Tanggal</th>
+                      <th style={{ textAlign: "right" }}>Penggunaan (L)</th>
+                      <th style={{ textAlign: "right" }}>Penggunaan s/d (L)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.date}>
+                        <td style={{ fontSize: 12 }}>{formatDate(r.date)}</td>
+                        <td style={{ fontSize: 12, textAlign: "right" }}>{formatNumber(r.usage, 0)}</td>
+                        <td style={{ fontSize: 12, textAlign: "right" }}>{formatNumber(r.cumulative, 0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -212,20 +280,6 @@ function RawDataByActivity({
   logs: HeavyEquipmentLog[];
   onSelectLog: (l: HeavyEquipmentLog) => void;
 }) {
-  // Kumulatif BBM per alat, dihitung sekali dari seluruh log (bukan per tabel pekerjaan)
-  // agar hari dengan >1 pekerjaan tidak menghitung BBM dua kali.
-  const fuelCumByLogId = useMemo(() => {
-    const sorted = [...logs].sort((a, b) => a.log_date.localeCompare(b.log_date) || a.id.localeCompare(b.id));
-    const running: Record<string, number> = {};
-    const out: Record<string, number> = {};
-    sorted.forEach((l) => {
-      const eqId = l.equipment?.id ?? "?";
-      running[eqId] = (running[eqId] ?? 0) + (l.fuel_liters ?? 0);
-      out[l.id] = running[eqId];
-    });
-    return out;
-  }, [logs]);
-
   const tables = HEAVY_EQUIPMENT_ACTIVITIES.map((actType) => {
     type Row = { log: HeavyEquipmentLog; activity: HeavyEquipmentLogActivity; cumVolume: number };
     const rows: Row[] = [];
@@ -241,11 +295,7 @@ function RawDataByActivity({
     });
 
     return { actType, rows };
-  }).filter((t) => t.rows.length > 0);
-
-  if (tables.length === 0) {
-    return <div className="section-card glass"><div className="empty-state">Tidak ada data pada rentang ini.</div></div>;
-  }
+  });
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
@@ -255,64 +305,64 @@ function RawDataByActivity({
             {actType.label}
             {actType.unit && <span style={{ fontWeight: 400, color: "var(--muted)" }}> ({actType.unit})</span>}
           </h4>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Tanggal</th>
-                  <th>Kebun</th>
-                  <th>Area</th>
-                  <th>Operator</th>
-                  <th>Kenek</th>
-                  <th style={{ textAlign: "right" }}>BBM (L)</th>
-                  <th style={{ textAlign: "right" }}>BBM s/d</th>
-                  <th>Pagi Mulai</th>
-                  <th>Pagi Selesai</th>
-                  <th>Sore Mulai</th>
-                  <th>Sore Selesai</th>
-                  <th>Mulai</th>
-                  <th>Selesai</th>
-                  {actType.unit && <th style={{ textAlign: "right" }}>Hasil</th>}
-                  {actType.unit && <th style={{ textAlign: "right" }}>s/d</th>}
-                  <th>Keterangan</th>
-                  <th style={{ textAlign: "center" }}>Foto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(({ log, activity, cumVolume }) => {
-                  const [start, end] = activityTimeLabels(activity, log.log_date);
-                  return (
-                    <tr
-                      key={log.id + activity.activity_type}
-                      className="clickable"
-                      style={{ cursor: "pointer" }}
-                      onClick={() => onSelectLog(log)}
-                    >
-                      <td style={{ fontSize: 12 }}>{formatDate(log.log_date)}</td>
-                      <td style={{ fontSize: 12 }}>{log.kebun}</td>
-                      <td style={{ fontSize: 12 }}>{log.area ?? "—"}</td>
-                      <td style={{ fontSize: 12 }}>{log.operator}</td>
-                      <td style={{ fontSize: 12 }}>{log.kenek ?? "—"}</td>
-                      <td style={{ fontSize: 12, textAlign: "right" }}>{log.fuel_liters != null ? formatNumber(log.fuel_liters, 0) : "—"}</td>
-                      <td style={{ fontSize: 12, textAlign: "right" }}>{formatNumber(fuelCumByLogId[log.id] ?? 0, 0)}</td>
-                      <td style={{ fontSize: 12 }}>{log.work_morning_start ?? "—"}</td>
-                      <td style={{ fontSize: 12 }}>{log.work_morning_end ?? "—"}</td>
-                      <td style={{ fontSize: 12 }}>{log.work_afternoon_start ?? "—"}</td>
-                      <td style={{ fontSize: 12 }}>{log.work_afternoon_end ?? "—"}</td>
-                      <td style={{ fontSize: 12 }}>{start}</td>
-                      <td style={{ fontSize: 12 }}>{end}</td>
-                      {actType.unit && (
-                        <td style={{ fontSize: 12, textAlign: "right" }}>{activity.volume != null ? formatNumber(activity.volume, 0) : "—"}</td>
-                      )}
-                      {actType.unit && <td style={{ fontSize: 12, textAlign: "right" }}>{formatNumber(cumVolume, 0)}</td>}
-                      <td style={{ fontSize: 12, maxWidth: 160 }}>{log.note ?? "—"}</td>
-                      <td style={{ fontSize: 12, textAlign: "center" }}>{log.photos?.length ?? 0}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          {rows.length === 0 ? (
+            <div className="empty-state">Belum ada data pekerjaan ini pada rentang ini.</div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tanggal</th>
+                    <th>Kebun</th>
+                    <th>Area</th>
+                    <th>Operator</th>
+                    <th>Kenek</th>
+                    <th>Pagi Mulai</th>
+                    <th>Pagi Selesai</th>
+                    <th>Sore Mulai</th>
+                    <th>Sore Selesai</th>
+                    <th>Mulai</th>
+                    <th>Selesai</th>
+                    {actType.unit && <th style={{ textAlign: "right" }}>Hasil</th>}
+                    {actType.unit && <th style={{ textAlign: "right" }}>s/d</th>}
+                    <th>Keterangan</th>
+                    <th style={{ textAlign: "center" }}>Foto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(({ log, activity, cumVolume }) => {
+                    const [start, end] = activityTimeLabels(activity, log.log_date);
+                    return (
+                      <tr
+                        key={log.id + activity.activity_type}
+                        className="clickable"
+                        style={{ cursor: "pointer" }}
+                        onClick={() => onSelectLog(log)}
+                      >
+                        <td style={{ fontSize: 12 }}>{formatDate(log.log_date)}</td>
+                        <td style={{ fontSize: 12 }}>{log.kebun}</td>
+                        <td style={{ fontSize: 12 }}>{log.area ?? "—"}</td>
+                        <td style={{ fontSize: 12 }}>{log.operator}</td>
+                        <td style={{ fontSize: 12 }}>{log.kenek ?? "—"}</td>
+                        <td style={{ fontSize: 12 }}>{log.work_morning_start ?? "—"}</td>
+                        <td style={{ fontSize: 12 }}>{log.work_morning_end ?? "—"}</td>
+                        <td style={{ fontSize: 12 }}>{log.work_afternoon_start ?? "—"}</td>
+                        <td style={{ fontSize: 12 }}>{log.work_afternoon_end ?? "—"}</td>
+                        <td style={{ fontSize: 12 }}>{start}</td>
+                        <td style={{ fontSize: 12 }}>{end}</td>
+                        {actType.unit && (
+                          <td style={{ fontSize: 12, textAlign: "right" }}>{activity.volume != null ? formatNumber(activity.volume, 0) : "—"}</td>
+                        )}
+                        {actType.unit && <td style={{ fontSize: 12, textAlign: "right" }}>{formatNumber(cumVolume, 0)}</td>}
+                        <td style={{ fontSize: 12, maxWidth: 160 }}>{log.note ?? "—"}</td>
+                        <td style={{ fontSize: 12, textAlign: "center" }}>{log.photos?.length ?? 0}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -438,18 +488,34 @@ function AnalyticsView({ analytics }: { analytics: any }) {
       </div>
 
       <div className="section-card glass" style={{ marginBottom: 18 }}>
-        <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>BBM &amp; biaya harian</h4>
+        <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>Konsumsi BBM harian</h4>
         <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={analytics.daily_series} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+          <ComposedChart data={analytics.daily_series} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="date" tick={{ fontSize: 10 }} />
             <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
             <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
             <Tooltip formatter={(v: any) => formatNumber(Number(v), 0)} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Line yAxisId="left" type="monotone" dataKey="fuel_liters" name="BBM harian (L)" stroke="#378ADD" strokeWidth={2} dot={false} />
-            <Line yAxisId="right" type="monotone" dataKey="cumulative_cost" name="Biaya kumulatif (Rp)" stroke="#1D9E75" strokeWidth={2} strokeDasharray="4 3" dot={false} />
-          </LineChart>
+            <Bar yAxisId="left" dataKey="fuel_liters" name="BBM harian (L)" fill="#378ADD" radius={[4, 4, 0, 0]} />
+            <Line yAxisId="right" type="monotone" dataKey="cumulative_fuel" name="Kumulatif BBM (L)" stroke="#1D9E75" strokeWidth={2} dot={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="section-card glass" style={{ marginBottom: 18 }}>
+        <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>Biaya operasional harian</h4>
+        <ResponsiveContainer width="100%" height={260}>
+          <ComposedChart data={analytics.daily_series} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+            <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
+            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(v: any) => `Rp ${formatNumber(Number(v), 0)}`} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Bar yAxisId="left" dataKey="cost" name="Biaya harian (Rp)" fill="#D85A30" radius={[4, 4, 0, 0]} />
+            <Line yAxisId="right" type="monotone" dataKey="cumulative_cost" name="Kumulatif biaya (Rp)" stroke="#712B13" strokeWidth={2} dot={false} />
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
 
