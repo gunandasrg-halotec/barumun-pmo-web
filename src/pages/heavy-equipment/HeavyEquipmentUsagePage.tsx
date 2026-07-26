@@ -6,6 +6,7 @@ import {
   Bar,
   ComposedChart,
   Line,
+  LabelList,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -449,7 +450,9 @@ function AnalyticsView({ analytics }: { analytics: any }) {
             <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" interval={0} height={60} />
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip formatter={(v: any) => formatNumber(Number(v), 0)} />
-            <Bar dataKey="total_volume" name="Hasil kerja" fill="#1D9E75" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="total_volume" name="Hasil kerja" fill="#1D9E75" radius={[4, 4, 0, 0]}>
+              <LabelList dataKey="total_volume" position="top" style={{ fontSize: 10, fill: "var(--text-secondary, #666)" }} formatter={(v: any) => formatNumber(Number(v), 0)} />
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -462,7 +465,9 @@ function AnalyticsView({ analytics }: { analytics: any }) {
             <XAxis type="number" tick={{ fontSize: 10 }} />
             <YAxis type="category" dataKey="label" tick={{ fontSize: 10 }} width={140} />
             <Tooltip formatter={(v: any) => `${formatNumber(Number(v), 1)} jam`} />
-            <Bar dataKey="total_hours" name="Jam kerja" fill="#378ADD" radius={[0, 4, 4, 0]} />
+            <Bar dataKey="total_hours" name="Jam kerja" fill="#378ADD" radius={[0, 4, 4, 0]}>
+              <LabelList dataKey="total_hours" position="right" style={{ fontSize: 10, fill: "var(--text-secondary, #666)" }} formatter={(v: any) => `${formatNumber(Number(v), 1)} jam`} />
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -481,7 +486,9 @@ function AnalyticsView({ analytics }: { analytics: any }) {
               <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" interval={0} height={60} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v: any) => `Rp ${formatNumber(Number(v), 0)}`} />
-              <Bar dataKey="cost_per_unit" name="Biaya / satuan" fill="#BA7517" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="cost_per_unit" name="Biaya / satuan" fill="#BA7517" radius={[4, 4, 0, 0]}>
+                <LabelList dataKey="cost_per_unit" position="top" style={{ fontSize: 10, fill: "var(--text-secondary, #666)" }} formatter={(v: any) => `Rp ${formatNumber(Number(v), 0)}`} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -497,8 +504,19 @@ function AnalyticsView({ analytics }: { analytics: any }) {
             <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
             <Tooltip formatter={(v: any) => formatNumber(Number(v), 0)} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar yAxisId="left" dataKey="fuel_liters" name="BBM harian (L)" fill="#378ADD" radius={[4, 4, 0, 0]} />
-            <Line yAxisId="right" type="monotone" dataKey="cumulative_fuel" name="Kumulatif BBM (L)" stroke="#1D9E75" strokeWidth={2} dot={false} />
+            <Bar yAxisId="left" dataKey="fuel_liters" name="BBM harian (L)" fill="#378ADD" radius={[4, 4, 0, 0]}>
+              <LabelList dataKey="fuel_liters" position="top" style={{ fontSize: 10, fill: "var(--text-secondary, #666)" }} formatter={(v: any) => formatNumber(Number(v), 0)} />
+            </Bar>
+            <Line
+              yAxisId="right"
+              type="monotone"
+              dataKey="cumulative_fuel"
+              name="Kumulatif BBM (L)"
+              stroke="#BA7517"
+              strokeWidth={2}
+              dot={{ r: 3, fill: "#BA7517" }}
+              label={{ position: "top", fontSize: 10, fill: "#BA7517", formatter: (v: any) => formatNumber(Number(v), 0) }}
+            />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -513,8 +531,19 @@ function AnalyticsView({ analytics }: { analytics: any }) {
             <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
             <Tooltip formatter={(v: any) => `Rp ${formatNumber(Number(v), 0)}`} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar yAxisId="left" dataKey="cost" name="Biaya harian (Rp)" fill="#D85A30" radius={[4, 4, 0, 0]} />
-            <Line yAxisId="right" type="monotone" dataKey="cumulative_cost" name="Kumulatif biaya (Rp)" stroke="#712B13" strokeWidth={2} dot={false} />
+            <Bar yAxisId="left" dataKey="cost" name="Biaya harian (Rp)" fill="#D85A30" radius={[4, 4, 0, 0]}>
+              <LabelList dataKey="cost" position="top" style={{ fontSize: 10, fill: "var(--text-secondary, #666)" }} formatter={(v: any) => `Rp ${formatNumber(Number(v), 0)}`} />
+            </Bar>
+            <Line
+              yAxisId="right"
+              type="monotone"
+              dataKey="cumulative_cost"
+              name="Kumulatif biaya (Rp)"
+              stroke="#185FA5"
+              strokeWidth={2}
+              dot={{ r: 3, fill: "#185FA5" }}
+              label={{ position: "top", fontSize: 10, fill: "#185FA5", formatter: (v: any) => `Rp ${formatNumber(Number(v), 0)}` }}
+            />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -530,7 +559,9 @@ function AnalyticsView({ analytics }: { analytics: any }) {
               <XAxis type="number" tick={{ fontSize: 10 }} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={110} />
               <Tooltip formatter={(v: any) => `Rp ${formatNumber(Number(v), 0)}`} />
-              <Bar dataKey="total" name="Total biaya" fill="#BA7517" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="total" name="Total biaya" fill="#BA7517" radius={[0, 4, 4, 0]}>
+                <LabelList dataKey="total" position="right" style={{ fontSize: 10, fill: "var(--text-secondary, #666)" }} formatter={(v: any) => `Rp ${formatNumber(Number(v), 0)}`} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         )}
