@@ -496,7 +496,10 @@ export interface HeavyEquipmentAnalytics {
     total_cost: number;
     cost_per_unit: number | null;
     cost_per_hour: number | null;
+    speed_per_hour: number | null;
   }>;
+  activity_daily_series: Array<Record<string, number | string>>;
+  activity_daily_types: Array<{ value: string; label: string; unit: string | null }>;
   by_equipment: Array<{
     equipment: { id: string; code: string; type: string; brand: string } | null;
     days: number;

@@ -37,6 +37,14 @@ function shortDate(iso?: string | null): string {
   return `${parts[2]}/${parts[1]}`;
 }
 
+const ACTIVITY_COLORS: Record<string, string> = {
+  PARIT_BATAS: "#1D9E75",
+  PARIT_LEMBAH: "#378ADD",
+  CHIPPING: "#BA7517",
+  TUMBANG_POKOK: "#D85A30",
+  BUKA_JALAN: "#7F77DD",
+};
+
 /** [label mulai, label selesai] — untuk Roling menampilkan tanggal bila lintas hari. */
 function activityTimeLabels(a: HeavyEquipmentLogActivity, logDateIso: string): [string, string] {
   if (a.activity_type === "ROLING") {
@@ -83,33 +91,72 @@ export default function HeavyEquipmentUsagePage() {
   const setF = (k: keyof typeof filters, v: string) => setFilters((p) => ({ ...p, [k]: v }));
 
   function exportCsv() {
+    // Kolom mengikuti formulir Excel lapangan (Laporan Harian Alat Berat), satu baris per hari,
+    // diurutkan tanggal terkecil -> terbesar.
     const header = [
-      "Jenis Pekerjaan", "Tanggal", "Kode Alat", "Kebun", "Area", "Operator", "Kenek",
-      "BBM (L)", "Mulai", "Selesai", "Hasil", "Satuan", "Total Biaya Hari Itu", "Keterangan",
+      "Tanggal", "Kode Alat", "Kebun", "Area", "Operator", "Kenek",
+      "BBM (Ltr)", "BBM (S/d)",
+      "Jam Pagi Mulai", "Jam Pagi Selesai", "Jam Sore Mulai", "Jam Sore Selesai",
+      "Roling Mulai", "Roling Selesai",
+      "Parit Batas Mulai", "Parit Batas Selesai", "Parit Batas (Mtr)", "Parit Batas (S/d)",
+      "Parit Lembah Mulai", "Parit Lembah Selesai", "Parit Lembah (Mtr)", "Parit Lembah (S/d)",
+      "Chipping Mulai", "Chipping Selesai", "Chipping (Pkk)", "Chipping (S/d)",
+      "Tumbang Pokok Mulai", "Tumbang Pokok Selesai", "Tumbang Pokok (Pkk)", "Tumbang Pokok (S/d)",
+      "Buka Jalan Mulai", "Buka Jalan Selesai", "Buka Jalan (Mtr)", "Buka Jalan (S/d)",
+      "Keterangan", "Jumlah Foto",
     ];
-    const rows: (string | number)[][] = [];
-    logs.forEach((l) => {
-      const acts = l.activities && l.activities.length > 0 ? l.activities : [null];
-      acts.forEach((a) => {
-        const [start, end] = a ? activityTimeLabels(a, l.log_date) : ["", ""];
-        rows.push([
-          a?.label ?? a?.activity_type ?? "—",
-          l.log_date,
-          l.equipment?.code ?? "",
-          l.kebun,
-          l.area ?? "",
-          l.operator,
-          l.kenek ?? "",
-          l.fuel_liters ?? "",
-          start,
-          end,
-          a?.volume ?? "",
-          a?.unit ?? "",
-          l.total_cost,
-          l.note ?? "",
-        ]);
-      });
+
+    const sorted = [...logs].sort((a, b) => a.log_date.localeCompare(b.log_date) || a.id.localeCompare(b.id));
+    const fuelCum: Record<string, number> = {};
+    const volCum: Record<string, Record<string, number>> = {};
+
+    const volCell = (l: HeavyEquipmentLog, eqId: string, type: string) => {
+      const act = (l.activities ?? []).find((a) => a.activity_type === type);
+      if (!act) return { start: "", end: "", volume: "", cum: "" as number | string };
+      const [start, end] = activityTimeLabels(act, l.log_date);
+      if (!volCum[type]) volCum[type] = {};
+      volCum[type][eqId] = (volCum[type][eqId] ?? 0) + (act.volume ?? 0);
+      return { start, end, volume: act.volume ?? "", cum: volCum[type][eqId] };
+    };
+
+    const rows: (string | number)[][] = sorted.map((l) => {
+      const eqId = l.equipment?.id ?? "?";
+      fuelCum[eqId] = (fuelCum[eqId] ?? 0) + (l.fuel_liters ?? 0);
+
+      const roling = (l.activities ?? []).find((a) => a.activity_type === "ROLING");
+      const [rolingStart, rolingEnd] = roling ? activityTimeLabels(roling, l.log_date) : ["", ""];
+
+      const paritBatas = volCell(l, eqId, "PARIT_BATAS");
+      const paritLembah = volCell(l, eqId, "PARIT_LEMBAH");
+      const chipping = volCell(l, eqId, "CHIPPING");
+      const tumbang = volCell(l, eqId, "TUMBANG_POKOK");
+      const bukaJalan = volCell(l, eqId, "BUKA_JALAN");
+
+      return [
+        l.log_date,
+        l.equipment?.code ?? "",
+        l.kebun,
+        l.area ?? "",
+        l.operator,
+        l.kenek ?? "",
+        l.fuel_liters ?? "",
+        fuelCum[eqId],
+        l.work_morning_start ?? "",
+        l.work_morning_end ?? "",
+        l.work_afternoon_start ?? "",
+        l.work_afternoon_end ?? "",
+        rolingStart,
+        rolingEnd,
+        paritBatas.start, paritBatas.end, paritBatas.volume, paritBatas.cum,
+        paritLembah.start, paritLembah.end, paritLembah.volume, paritLembah.cum,
+        chipping.start, chipping.end, chipping.volume, chipping.cum,
+        tumbang.start, tumbang.end, tumbang.volume, tumbang.cum,
+        bukaJalan.start, bukaJalan.end, bukaJalan.volume, bukaJalan.cum,
+        l.note ?? "",
+        l.photos?.length ?? 0,
+      ];
     });
+
     const csv = [header, ...rows]
       .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
       .join("\n");
@@ -385,6 +432,10 @@ function AnalyticsView({ analytics }: { analytics: any }) {
     (a) => a.total_volume > 0 || a.total_hours > 0
   );
 
+  const activeDailyTypes = (analytics.activity_daily_types as { value: string; label: string; unit: string | null }[]).filter(
+    (t) => activitiesWithData.some((a) => a.activity_type === t.value && a.total_volume > 0)
+  );
+
   return (
     <>
       <div className="section-card glass" style={{ marginBottom: 18 }}>
@@ -411,6 +462,7 @@ function AnalyticsView({ analytics }: { analytics: any }) {
                   <th>Jenis Pekerjaan</th>
                   <th style={{ textAlign: "right" }}>Hasil Kerja</th>
                   <th style={{ textAlign: "right" }}>Jam Kerja</th>
+                  <th style={{ textAlign: "right" }}>Kecepatan Kerja</th>
                   <th style={{ textAlign: "right" }}>Biaya</th>
                   <th style={{ textAlign: "right" }}>Biaya / Satuan</th>
                   <th style={{ textAlign: "right" }}>Biaya / Jam</th>
@@ -424,6 +476,9 @@ function AnalyticsView({ analytics }: { analytics: any }) {
                       {a.unit ? `${formatNumber(a.total_volume, 0)} ${a.unit}` : "—"}
                     </td>
                     <td style={{ fontSize: 13, textAlign: "right" }}>{formatNumber(a.total_hours, 1)} jam</td>
+                    <td style={{ fontSize: 13, textAlign: "right" }}>
+                      {a.speed_per_hour != null ? `${formatNumber(a.speed_per_hour, 2)} ${a.unit}/jam` : "—"}
+                    </td>
                     <td style={{ fontSize: 13, textAlign: "right" }}>Rp {formatNumber(a.total_cost, 0)}</td>
                     <td style={{ fontSize: 13, textAlign: "right" }}>
                       {a.cost_per_unit != null ? `Rp ${formatNumber(a.cost_per_unit, 0)} / ${a.unit}` : "—"}
@@ -443,18 +498,49 @@ function AnalyticsView({ analytics }: { analytics: any }) {
       </div>
 
       <div className="section-card glass" style={{ marginBottom: 18 }}>
-        <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>Hasil kerja per jenis pekerjaan</h4>
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={activitiesWithData} margin={{ top: 8, right: 8, left: 0, bottom: 40 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" interval={0} height={60} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(v: any) => formatNumber(Number(v), 0)} />
-            <Bar dataKey="total_volume" name="Hasil kerja" fill="#1D9E75" radius={[4, 4, 0, 0]}>
-              <LabelList dataKey="total_volume" position="top" style={{ fontSize: 10, fill: "var(--text-secondary, #666)" }} formatter={(v: any) => formatNumber(Number(v), 0)} />
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <h4 style={{ margin: "0 0 4px", fontSize: 14, color: "var(--green-800)" }}>Hasil kerja per jenis pekerjaan per hari</h4>
+        <p style={{ fontSize: 11, color: "var(--muted)", margin: "0 0 12px" }}>
+          Batang = hasil kerja hari itu &middot; garis putus-putus = kumulatif, masing-masing pekerjaan punya warna sendiri.
+        </p>
+        {activeDailyTypes.length === 0 ? (
+          <div className="empty-state">Belum ada data pekerjaan bersatuan pada rentang ini.</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <ComposedChart data={analytics.activity_daily_series} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+              <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(v: any) => formatNumber(Number(v), 0)} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              {activeDailyTypes.map((t) => (
+                <Bar
+                  key={t.value}
+                  yAxisId="left"
+                  dataKey={t.value}
+                  name={t.label}
+                  fill={ACTIVITY_COLORS[t.value]}
+                  radius={[3, 3, 0, 0]}
+                >
+                  <LabelList dataKey={t.value} position="top" style={{ fontSize: 9, fill: "var(--text-secondary, #666)" }} formatter={(v: any) => (Number(v) > 0 ? formatNumber(Number(v), 0) : "")} />
+                </Bar>
+              ))}
+              {activeDailyTypes.map((t) => (
+                <Line
+                  key={`${t.value}_cum`}
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey={`${t.value}_cum`}
+                  name={`${t.label} (kumulatif)`}
+                  stroke={ACTIVITY_COLORS[t.value]}
+                  strokeWidth={2}
+                  strokeDasharray="4 3"
+                  dot={{ r: 2 }}
+                />
+              ))}
+            </ComposedChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       <div className="section-card glass" style={{ marginBottom: 18 }}>
