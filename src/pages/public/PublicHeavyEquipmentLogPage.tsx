@@ -42,6 +42,33 @@ type FormShape = {
 };
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
+
+async function compressImage(file: File, maxDim = 1280, quality = 0.75): Promise<File> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const objUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objUrl);
+      const { naturalWidth: w, naturalHeight: h } = img;
+      const scale = Math.min(1, maxDim / Math.max(w, h));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(w * scale);
+      canvas.height = Math.round(h * scale);
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { resolve(file); return; }
+          resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
+        },
+        'image/jpeg',
+        quality
+      );
+    };
+    img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(file); };
+    img.src = objUrl;
+  });
+}
+
 const KEBUN_OPTIONS = ["Kota Pinang", "Binanga", "Janji Matogu", "Sosa"];
 const TIME_OPTIONS: string[] = (() => {
   const out: string[] = [];
@@ -673,10 +700,12 @@ export default function PublicHeavyEquipmentLogPage() {
                 type="file"
                 accept="image/*"
                 multiple
-                onChange={(e) => {
+                onChange={async (e) => {
                   const picked = Array.from(e.target.files ?? []);
-                  if (picked.length) setPhotos((prev) => [...prev, ...picked]);
                   e.target.value = "";
+                  if (!picked.length) return;
+                  const compressed = await Promise.all(picked.map((f) => compressImage(f)));
+                  setPhotos((prev) => [...prev, ...compressed]);
                 }}
               />
               {previews.length > 0 && (
