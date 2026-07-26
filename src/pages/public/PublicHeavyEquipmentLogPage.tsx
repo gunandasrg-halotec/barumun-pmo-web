@@ -43,7 +43,7 @@ type FormShape = {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-async function compressImage(file: File, maxDim = 1280, quality = 0.75): Promise<File> {
+async function compressImage(file: File, maxDim = 800, quality = 0.60): Promise<File> {
   return new Promise((resolve) => {
     const img = new Image();
     const objUrl = URL.createObjectURL(file);
