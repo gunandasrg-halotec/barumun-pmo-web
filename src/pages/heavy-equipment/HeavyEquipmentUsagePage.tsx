@@ -242,6 +242,7 @@ export default function HeavyEquipmentUsagePage() {
             <div className="section-card glass"><div className="danger-box">{extractError(logsQ.error)}</div></div>
           ) : (
             <>
+              <CostHistoryTable logs={logs} />
               <BbmHistoryTable logs={logs} />
               <RawDataByActivity logs={logs} onSelectLog={setDetail} />
             </>
@@ -254,7 +255,94 @@ export default function HeavyEquipmentUsagePage() {
   );
 }
 
+// ─── Data mentah: riwayat biaya harian (pivot per item biaya) ──────────────
+
+function CostHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
+  const { items, rows, colTotals, grandTotal } = useMemo(() => {
+    const sorted = [...logs].sort((a, b) => a.log_date.localeCompare(b.log_date) || a.id.localeCompare(b.id));
+
+    // kumpulkan semua item biaya yang muncul (urutan kemunculan pertama)
+    const itemMap = new Map<string, string>(); // id → name
+    sorted.forEach((l) => (l.costs ?? []).forEach((c) => {
+      if (c.cost_item_id && c.name && !itemMap.has(c.cost_item_id))
+        itemMap.set(c.cost_item_id, c.name);
+    }));
+    const items = Array.from(itemMap.entries()).map(([id, name]) => ({ id, name }));
+
+    // satu baris per tanggal+alat
+    const rows = sorted.map((l) => {
+      const byItem: Record<string, number> = {};
+      (l.costs ?? []).forEach((c) => { if (c.cost_item_id) byItem[c.cost_item_id] = c.amount ?? 0; });
+      const total = items.reduce((s, it) => s + (byItem[it.id] ?? 0), 0);
+      return { log: l, byItem, total };
+    });
+
+    const colTotals: Record<string, number> = {};
+    items.forEach((it) => { colTotals[it.id] = rows.reduce((s, r) => s + (r.byItem[it.id] ?? 0), 0); });
+    const grandTotal = rows.reduce((s, r) => s + r.total, 0);
+
+    return { items, rows, colTotals, grandTotal };
+  }, [logs]);
+
+  const fmt = (v: number) => v > 0 ? formatNumber(v, 0) : "—";
+
+  return (
+    <div className="section-card glass" style={{ marginBottom: 18 }}>
+      <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>Riwayat Biaya Harian</h4>
+      {rows.length === 0 ? (
+        <div className="empty-state">Belum ada data pada rentang ini.</div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tanggal</th>
+                {items.map((it) => <th key={it.id} style={{ textAlign: "right" }}>{it.name}</th>)}
+                <th style={{ textAlign: "right" }}>Total/hari</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ log, byItem, total }) => (
+                <tr key={log.id}>
+                  <td style={{ fontSize: 12, whiteSpace: "nowrap" }}>{formatDate(log.log_date)}</td>
+                  {items.map((it) => (
+                    <td key={it.id} style={{ fontSize: 12, textAlign: "right" }}>{fmt(byItem[it.id] ?? 0)}</td>
+                  ))}
+                  <td style={{ fontSize: 12, textAlign: "right", fontWeight: 500 }}>
+                    {formatNumber(total, 0)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ borderTop: "1px solid var(--line)" }}>
+                <td style={{ fontSize: 12, fontWeight: 500 }}>Jumlah</td>
+                {items.map((it) => (
+                  <td key={it.id} style={{ fontSize: 12, textAlign: "right", fontWeight: 500 }}>
+                    {formatNumber(colTotals[it.id] ?? 0, 0)}
+                  </td>
+                ))}
+                <td style={{ fontSize: 12, textAlign: "right", fontWeight: 500, color: "var(--accent, #1b6fc8)" }}>
+                  {formatNumber(grandTotal, 0)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Data mentah: history penggunaan BBM (dikelompokkan per alat) ──────────
+
+const BBM_KEYWORDS = ["bbm", "minyak"];
+function findBbmCost(costs: HeavyEquipmentLog["costs"]): number {
+  const entry = (costs ?? []).find((c) =>
+    BBM_KEYWORDS.some((kw) => (c.name ?? "").toLowerCase().includes(kw))
+  );
+  return entry?.amount ?? 0;
+}
 
 function BbmHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
   const groups = useMemo(() => {
@@ -269,10 +357,11 @@ function BbmHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
         equipment: g.equipment,
         rows: [...g.logs]
           .sort((a, b) => a.log_date.localeCompare(b.log_date) || a.id.localeCompare(b.id))
-          .reduce<{ date: string; usage: number; cumulative: number }[]>((acc, l) => {
+          .reduce<{ date: string; usage: number; cost: number; cumUsage: number; cumCost: number }[]>((acc, l) => {
             const usage = l.fuel_liters ?? 0;
-            const prevCum = acc.length > 0 ? acc[acc.length - 1].cumulative : 0;
-            acc.push({ date: l.log_date, usage, cumulative: prevCum + usage });
+            const cost  = findBbmCost(l.costs);
+            const prev  = acc.length > 0 ? acc[acc.length - 1] : { cumUsage: 0, cumCost: 0 };
+            acc.push({ date: l.log_date, usage, cost, cumUsage: prev.cumUsage + usage, cumCost: prev.cumCost + cost });
             return acc;
           }, []),
       }))
@@ -296,18 +385,29 @@ function BbmHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
                   <thead>
                     <tr>
                       <th>Tanggal</th>
+                      <th style={{ textAlign: "right" }}>Harga/liter (Rp)</th>
                       <th style={{ textAlign: "right" }}>Penggunaan (L)</th>
+                      <th style={{ textAlign: "right" }}>Biaya (Rp)</th>
                       <th style={{ textAlign: "right" }}>Penggunaan s/d (L)</th>
+                      <th style={{ textAlign: "right" }}>Biaya s/d (Rp)</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((r) => (
-                      <tr key={r.date}>
-                        <td style={{ fontSize: 12 }}>{formatDate(r.date)}</td>
-                        <td style={{ fontSize: 12, textAlign: "right" }}>{formatNumber(r.usage, 0)}</td>
-                        <td style={{ fontSize: 12, textAlign: "right" }}>{formatNumber(r.cumulative, 0)}</td>
-                      </tr>
-                    ))}
+                    {rows.map((r) => {
+                      const hargaPerLiter = r.usage > 0 ? Math.round(r.cost / r.usage) : null;
+                      return (
+                        <tr key={r.date}>
+                          <td style={{ fontSize: 12, whiteSpace: "nowrap" }}>{formatDate(r.date)}</td>
+                          <td style={{ fontSize: 12, textAlign: "right" }}>
+                            {hargaPerLiter != null ? formatNumber(hargaPerLiter, 0) : "—"}
+                          </td>
+                          <td style={{ fontSize: 12, textAlign: "right" }}>{formatNumber(r.usage, 0)}</td>
+                          <td style={{ fontSize: 12, textAlign: "right" }}>{r.cost > 0 ? formatNumber(r.cost, 0) : "—"}</td>
+                          <td style={{ fontSize: 12, textAlign: "right" }}>{formatNumber(r.cumUsage, 0)}</td>
+                          <td style={{ fontSize: 12, textAlign: "right" }}>{r.cumCost > 0 ? formatNumber(r.cumCost, 0) : "—"}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
