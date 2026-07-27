@@ -2,7 +2,7 @@ import publicApi from "./publicApi";
 import type {
   ApiResponse,
   HeavyEquipment,
-  HeavyEquipmentActivityOption,
+  HeavyEquipmentActivityTypeConfig,
   HeavyEquipmentCostItem,
   HeavyEquipmentLog,
 } from "../types";
@@ -35,7 +35,7 @@ export const heavyEquipmentPublicService = {
   },
 
   listActivityTypes: async (p: string) => {
-    const res = await publicApi.get<ApiResponse<HeavyEquipmentActivityOption[]>>(
+    const res = await publicApi.get<ApiResponse<HeavyEquipmentActivityTypeConfig[]>>(
       "/public/heavy-equipment/activity-types",
       pin(p)
     );

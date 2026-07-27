@@ -3,6 +3,7 @@ import type {
   ApiResponse,
   PaginatedResponse,
   HeavyEquipment,
+  HeavyEquipmentActivityTypeConfig,
   HeavyEquipmentCostItem,
   HeavyEquipmentLog,
   HeavyEquipmentAnalytics,
@@ -57,6 +58,36 @@ export const heavyEquipmentService = {
   updateCostItem: async (id: string, d: Partial<HeavyEquipmentCostItem>) => {
     const res = await api.patch<ApiResponse<HeavyEquipmentCostItem>>(
       `/heavy-equipment/cost-items/${id}`,
+      d
+    );
+    return res.data;
+  },
+
+  // ── Jenis pekerjaan (Admin Sistem) ──
+  listActivityTypes: async (activeOnly = false) => {
+    const res = await api.get<ApiResponse<HeavyEquipmentActivityTypeConfig[]>>(
+      "/heavy-equipment/activity-types",
+      { params: { active_only: activeOnly } }
+    );
+    return res.data;
+  },
+  createActivityType: async (d: {
+    code: string;
+    name: string;
+    unit?: string | null;
+    allow_date_range?: boolean;
+    sort_order?: number;
+    is_active?: boolean;
+  }) => {
+    const res = await api.post<ApiResponse<HeavyEquipmentActivityTypeConfig>>(
+      "/heavy-equipment/activity-types",
+      d
+    );
+    return res.data;
+  },
+  updateActivityType: async (id: string, d: Partial<HeavyEquipmentActivityTypeConfig>) => {
+    const res = await api.patch<ApiResponse<HeavyEquipmentActivityTypeConfig>>(
+      `/heavy-equipment/activity-types/${id}`,
       d
     );
     return res.data;

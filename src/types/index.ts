@@ -398,21 +398,23 @@ export interface HeavyEquipmentCostItem {
   updated_at?: string;
 }
 
+export interface HeavyEquipmentActivityTypeConfig {
+  id: string;
+  code: string;
+  name: string;
+  unit: string | null;
+  allow_date_range: boolean;
+  sort_order: number;
+  is_active: boolean;
+}
+
+/** @deprecated Gunakan HeavyEquipmentActivityTypeConfig dari API */
 export interface HeavyEquipmentActivityOption {
   value: string;
   label: string;
   unit: string | null;
+  allow_date_range?: boolean;
 }
-
-// Mirror App\Enums\HeavyEquipmentActivityType (backend adalah sumber kebenaran).
-export const HEAVY_EQUIPMENT_ACTIVITIES: HeavyEquipmentActivityOption[] = [
-  { value: "ROLING", label: "Roling", unit: null },
-  { value: "PARIT_BATAS", label: "Buat Parit Batas (3m x 3m x 2,5m)", unit: "m" },
-  { value: "PARIT_LEMBAH", label: "Buat Parit Lembah (1m x 1m x 1m)", unit: "m" },
-  { value: "CHIPPING", label: "Chipping", unit: "pokok" },
-  { value: "TUMBANG_POKOK", label: "Tumbang Pokok Kayu", unit: "pokok" },
-  { value: "BUKA_JALAN", label: "Buka Jalan / Terasan", unit: "m" },
-];
 
 export const AREA_OPTIONS = ["TM", "TBM"] as const;
 

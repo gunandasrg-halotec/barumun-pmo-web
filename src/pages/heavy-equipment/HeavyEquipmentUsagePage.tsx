@@ -16,8 +16,8 @@ import {
 import { heavyEquipmentService } from "../../services/heavyEquipmentService";
 import { extractError, formatNumber, formatDate } from "../../utils/format";
 import {
-  HEAVY_EQUIPMENT_ACTIVITIES,
   type HeavyEquipment,
+  type HeavyEquipmentActivityTypeConfig,
   type HeavyEquipmentLog,
   type HeavyEquipmentLogActivity,
 } from "../../types";
@@ -45,17 +45,14 @@ const ACTIVITY_COLORS: Record<string, string> = {
   BUKA_JALAN: "#7F77DD",
 };
 
-/** [label mulai, label selesai] — untuk Roling menampilkan tanggal bila lintas hari. */
+/** [label mulai, label selesai] — tampilkan tanggal bila lintas hari (start_date / end_date berbeda). */
 function activityTimeLabels(a: HeavyEquipmentLogActivity, logDateIso: string): [string, string] {
-  if (a.activity_type === "ROLING") {
-    const sd = a.start_date || logDateIso;
-    const ed = a.end_date || sd;
-    const crossDay = ed !== sd;
-    const start = a.start_time ? `${crossDay ? shortDate(sd) + " " : ""}${a.start_time}` : "—";
-    const end = a.end_time ? `${crossDay ? shortDate(ed) + " " : ""}${a.end_time}` : "—";
-    return [start, end];
-  }
-  return [a.start_time || "—", a.end_time || "—"];
+  const sd = a.start_date || logDateIso;
+  const ed = a.end_date || sd;
+  const crossDay = sd !== logDateIso || ed !== sd;
+  const start = a.start_time ? `${crossDay ? shortDate(sd) + " " : ""}${a.start_time}` : "—";
+  const end = a.end_time ? `${crossDay ? shortDate(ed) + " " : ""}${a.end_time}` : "—";
+  return [start, end];
 }
 
 export default function HeavyEquipmentUsagePage() {
@@ -73,6 +70,13 @@ export default function HeavyEquipmentUsagePage() {
     queryFn: () => heavyEquipmentService.list(true),
   });
   const equipments: HeavyEquipment[] = (equipmentsQ.data as any)?.data ?? [];
+
+  const activityTypesQ = useQuery({
+    queryKey: ["heavy-equipment-activity-types"],
+    queryFn: () => heavyEquipmentService.listActivityTypes(false),
+    staleTime: 5 * 60 * 1000,
+  });
+  const activityTypes: HeavyEquipmentActivityTypeConfig[] = (activityTypesQ.data as any)?.data ?? [];
 
   const analyticsQ = useQuery({
     queryKey: ["heavy-equipment-analytics", filters],
@@ -244,7 +248,7 @@ export default function HeavyEquipmentUsagePage() {
             <>
               <CostHistoryTable logs={logs} />
               <BbmHistoryTable logs={logs} />
-              <RawDataByActivity logs={logs} onSelectLog={setDetail} />
+              <RawDataByActivity logs={logs} activityTypes={activityTypes} onSelectLog={setDetail} />
             </>
           )}
         </div>
@@ -423,19 +427,21 @@ function BbmHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
 
 function RawDataByActivity({
   logs,
+  activityTypes,
   onSelectLog,
 }: {
   logs: HeavyEquipmentLog[];
+  activityTypes: HeavyEquipmentActivityTypeConfig[];
   onSelectLog: (l: HeavyEquipmentLog) => void;
 }) {
-  const tables = HEAVY_EQUIPMENT_ACTIVITIES.map((actType) => {
+  const tables = activityTypes.map((actType) => {
     type Row = { log: HeavyEquipmentLog; activity: HeavyEquipmentLogActivity; cumVolume: number };
     const rows: Row[] = [];
     const sortedLogs = [...logs].sort((a, b) => a.log_date.localeCompare(b.log_date) || a.id.localeCompare(b.id));
     const runningVolume: Record<string, number> = {};
 
     sortedLogs.forEach((l) => {
-      const act = (l.activities ?? []).find((a) => a.activity_type === actType.value);
+      const act = (l.activities ?? []).find((a) => a.activity_type === actType.code);
       if (!act) return;
       const eqId = l.equipment?.id ?? "?";
       runningVolume[eqId] = (runningVolume[eqId] ?? 0) + (act.volume ?? 0);
@@ -448,9 +454,9 @@ function RawDataByActivity({
   return (
     <div style={{ display: "grid", gap: 18 }}>
       {tables.map(({ actType, rows }) => (
-        <div key={actType.value} className="section-card glass">
+        <div key={actType.code} className="section-card glass">
           <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>
-            {actType.label}
+            {actType.name}
             {actType.unit && <span style={{ fontWeight: 400, color: "var(--muted)" }}> ({actType.unit})</span>}
           </h4>
           {rows.length === 0 ? (

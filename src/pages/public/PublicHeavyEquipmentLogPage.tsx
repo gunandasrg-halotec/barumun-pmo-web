@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { heavyEquipmentPublicService } from "../../services/heavyEquipmentPublicService";
 import { extractError, formatNumber } from "../../utils/format";
 import {
-  HEAVY_EQUIPMENT_ACTIVITIES,
   AREA_OPTIONS,
   type HeavyEquipment,
+  type HeavyEquipmentActivityTypeConfig,
   type HeavyEquipmentCostItem,
 } from "../../types";
 import {
@@ -81,10 +81,10 @@ const TIME_OPTIONS: string[] = (() => {
 const LS_PIN = "he_field_pin";
 const LS_LISTS = "he_field_lists";
 
-const emptyActivities = (): Record<string, ActivityState> =>
+const emptyActivities = (types: HeavyEquipmentActivityTypeConfig[]): Record<string, ActivityState> =>
   Object.fromEntries(
-    HEAVY_EQUIPMENT_ACTIVITIES.map((a) => [
-      a.value,
+    types.map((a) => [
+      a.code,
       { enabled: false, start_date: "", end_date: "", start_time: "", end_time: "", volume: "" },
     ])
   );
@@ -112,6 +112,7 @@ const costsFromItems = (items: HeavyEquipmentCostItem[]): Record<string, CostSta
 function buildFormData(
   f: Record<string, string>,
   acts: Record<string, ActivityState>,
+  activityTypes: HeavyEquipmentActivityTypeConfig[],
   cs: Record<string, CostState>,
   ph: File[]
 ): FormData {
@@ -120,10 +121,10 @@ function buildFormData(
     if (v !== "" && v != null) fd.append(k, v);
   });
   let ai = 0;
-  HEAVY_EQUIPMENT_ACTIVITIES.forEach((a) => {
-    const st = acts[a.value];
+  activityTypes.forEach((a) => {
+    const st = acts[a.code];
     if (!st?.enabled) return;
-    fd.append(`activities[${ai}][activity_type]`, a.value);
+    fd.append(`activities[${ai}][activity_type]`, a.code);
     if (st.start_date) fd.append(`activities[${ai}][start_date]`, st.start_date);
     if (st.end_date) fd.append(`activities[${ai}][end_date]`, st.end_date);
     if (st.start_time) fd.append(`activities[${ai}][start_time]`, st.start_time);
@@ -145,11 +146,16 @@ function buildFormData(
 interface CachedLists {
   equipments: HeavyEquipment[];
   costItems: HeavyEquipmentCostItem[];
+  activityTypes: HeavyEquipmentActivityTypeConfig[];
 }
 function loadCachedLists(): CachedLists | null {
   try {
     const raw = localStorage.getItem(LS_LISTS);
-    return raw ? (JSON.parse(raw) as CachedLists) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedLists;
+    // Backward compat: jika cache lama tanpa activityTypes
+    if (!parsed.activityTypes) return null;
+    return parsed;
   } catch {
     return null;
   }
@@ -164,9 +170,10 @@ export default function PublicHeavyEquipmentLogPage() {
 
   const [equipments, setEquipments] = useState<HeavyEquipment[]>([]);
   const [costItems, setCostItems] = useState<HeavyEquipmentCostItem[]>([]);
+  const [activityTypes, setActivityTypes] = useState<HeavyEquipmentActivityTypeConfig[]>([]);
 
   const [form, setForm] = useState<FormShape>(defaultForm);
-  const [activities, setActivities] = useState<Record<string, ActivityState>>(emptyActivities);
+  const [activities, setActivities] = useState<Record<string, ActivityState>>({});
   const [costs, setCosts] = useState<Record<string, CostState>>({});
   const [photos, setPhotos] = useState<File[]>([]);
   const [viewPhoto, setViewPhoto] = useState<string | null>(null);
@@ -206,10 +213,16 @@ export default function PublicHeavyEquipmentLogPage() {
 
   const set = (k: keyof FormShape, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
+  function applyLists(eq: HeavyEquipment[], ci: HeavyEquipmentCostItem[], at: HeavyEquipmentActivityTypeConfig[]) {
+    setEquipments(eq);
+    setCostItems(ci);
+    setActivityTypes(at);
+    setCosts(costsFromItems(ci));
+    setActivities(emptyActivities(at));
+  }
+
   function enterOffline(cached: CachedLists) {
-    setEquipments(cached.equipments);
-    setCostItems(cached.costItems);
-    setCosts(costsFromItems(cached.costItems));
+    applyLists(cached.equipments, cached.costItems, cached.activityTypes);
     setOfflineMode(true);
     setVerified(true);
   }
@@ -220,18 +233,18 @@ export default function PublicHeavyEquipmentLogPage() {
     setVerifying(true);
     try {
       await heavyEquipmentPublicService.verifyPin(pin);
-      const [eqRes, ciRes] = await Promise.all([
+      const [eqRes, ciRes, atRes] = await Promise.all([
         heavyEquipmentPublicService.listEquipments(pin),
         heavyEquipmentPublicService.listCostItems(pin),
+        heavyEquipmentPublicService.listActivityTypes(pin),
       ]);
       const eq = eqRes.data ?? [];
       const ci = ciRes.data ?? [];
-      setEquipments(eq);
-      setCostItems(ci);
-      setCosts(costsFromItems(ci));
+      const at = atRes.data ?? [];
+      applyLists(eq, ci, at);
       try {
         localStorage.setItem(LS_PIN, pin);
-        localStorage.setItem(LS_LISTS, JSON.stringify({ equipments: eq, costItems: ci }));
+        localStorage.setItem(LS_LISTS, JSON.stringify({ equipments: eq, costItems: ci, activityTypes: at }));
       } catch {
         /* abaikan kuota penuh */
       }
@@ -250,7 +263,7 @@ export default function PublicHeavyEquipmentLogPage() {
 
   function resetForNext() {
     setForm((p) => ({ ...defaultForm(), heavy_equipment_id: p.heavy_equipment_id, kebun: p.kebun }));
-    setActivities(emptyActivities());
+    setActivities(emptyActivities(activityTypes));
     setCosts(costsFromItems(costItems));
     setPhotos([]);
     setSubmitted(false);
@@ -267,7 +280,7 @@ export default function PublicHeavyEquipmentLogPage() {
     setSubmitting(true);
     try {
       const usePin = pin || localStorage.getItem(LS_PIN) || "";
-      await heavyEquipmentPublicService.submitLog(usePin, buildFormData(form, activities, costs, photos));
+      await heavyEquipmentPublicService.submitLog(usePin, buildFormData(form, activities, activityTypes, costs, photos));
       setSubmitted(true);
     } catch (err) {
       setSubmitError(extractError(err) + " — bila sinyal buruk, simpan sebagai draft dan kirim nanti.");
@@ -324,7 +337,7 @@ export default function PublicHeavyEquipmentLogPage() {
 
   function loadDraft(d: HeavyEquipmentDraft) {
     setForm({ ...defaultForm(), ...d.form });
-    setActivities({ ...emptyActivities(), ...d.activities });
+    setActivities({ ...emptyActivities(activityTypes), ...d.activities });
     setCosts(d.costs);
     setPhotos(d.photos);
     setShowDrafts(false);
@@ -342,7 +355,7 @@ export default function PublicHeavyEquipmentLogPage() {
     }
     setSendingDrafts(true);
     try {
-      await heavyEquipmentPublicService.submitLog(usePin, buildFormData(d.form, d.activities, d.costs, d.photos));
+      await heavyEquipmentPublicService.submitLog(usePin, buildFormData(d.form, d.activities, activityTypes, d.costs, d.photos));
       await deleteDraft(d.id);
       setDrafts(await listDrafts());
       refreshDraftCount();
@@ -582,11 +595,11 @@ export default function PublicHeavyEquipmentLogPage() {
                 Aktifkan pekerjaan yang dilakukan, isi jam dan hasilnya. Bisa lebih dari satu.
               </p>
               <div style={{ display: "grid", gap: 8 }}>
-                {HEAVY_EQUIPMENT_ACTIVITIES.map((a) => {
-                  const st = activities[a.value];
+                {activityTypes.map((a) => {
+                  const st = activities[a.code] ?? { enabled: false, start_date: "", end_date: "", start_time: "", end_time: "", volume: "" };
                   return (
                     <div
-                      key={a.value}
+                      key={a.code}
                       style={{
                         border: "1px solid var(--line)",
                         borderRadius: 10,
@@ -600,43 +613,43 @@ export default function PublicHeavyEquipmentLogPage() {
                           checked={st.enabled}
                           onChange={(e) =>
                             setActivities((p) => {
-                              const next = { ...p[a.value], enabled: e.target.checked };
-                              if (a.value === "ROLING" && e.target.checked && !next.start_date) {
+                              const next = { ...p[a.code], enabled: e.target.checked };
+                              if (a.allow_date_range && e.target.checked && !next.start_date) {
                                 next.start_date = form.log_date;
                                 next.end_date = form.log_date;
                               }
-                              return { ...p, [a.value]: next };
+                              return { ...p, [a.code]: next };
                             })
                           }
                           style={{ width: "auto" }}
                         />
-                        {a.label}
+                        {a.name}
                         {a.unit && <span style={{ color: "var(--muted)", fontWeight: 400 }}>({a.unit})</span>}
                       </label>
                       {st.enabled &&
-                        (a.value === "ROLING" ? (
+                        (a.allow_date_range ? (
                           <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
                             <div style={{ fontSize: 11, color: "var(--muted)" }}>
-                              Roling bisa lintas hari — isi tanggal &amp; jam mulai dan selesai.
+                              Pekerjaan ini bisa lintas hari — isi tanggal &amp; jam mulai dan selesai.
                             </div>
                             <div style={{ display: "flex", gap: 8 }}>
                               <div className="field" style={{ flex: 1 }}>
                                 <label style={{ fontSize: 11 }}>Tgl mulai</label>
-                                <input type="date" value={st.start_date} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], start_date: e.target.value } }))} />
+                                <input type="date" value={st.start_date} onChange={(e) => setActivities((p) => ({ ...p, [a.code]: { ...p[a.code], start_date: e.target.value } }))} />
                               </div>
                               <div className="field" style={{ flex: 1 }}>
                                 <label style={{ fontSize: 11 }}>Jam mulai</label>
-                                <input type="time" value={st.start_time} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], start_time: e.target.value } }))} />
+                                <input type="time" value={st.start_time} onChange={(e) => setActivities((p) => ({ ...p, [a.code]: { ...p[a.code], start_time: e.target.value } }))} />
                               </div>
                             </div>
                             <div style={{ display: "flex", gap: 8 }}>
                               <div className="field" style={{ flex: 1 }}>
                                 <label style={{ fontSize: 11 }}>Tgl selesai</label>
-                                <input type="date" value={st.end_date} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], end_date: e.target.value } }))} />
+                                <input type="date" value={st.end_date} onChange={(e) => setActivities((p) => ({ ...p, [a.code]: { ...p[a.code], end_date: e.target.value } }))} />
                               </div>
                               <div className="field" style={{ flex: 1 }}>
                                 <label style={{ fontSize: 11 }}>Jam selesai</label>
-                                <input type="time" value={st.end_time} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], end_time: e.target.value } }))} />
+                                <input type="time" value={st.end_time} onChange={(e) => setActivities((p) => ({ ...p, [a.code]: { ...p[a.code], end_time: e.target.value } }))} />
                               </div>
                             </div>
                           </div>
@@ -644,16 +657,16 @@ export default function PublicHeavyEquipmentLogPage() {
                           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                             <div className="field" style={{ flex: 1 }}>
                               <label style={{ fontSize: 11 }}>Mulai</label>
-                              <input type="time" value={st.start_time} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], start_time: e.target.value } }))} />
+                              <input type="time" value={st.start_time} onChange={(e) => setActivities((p) => ({ ...p, [a.code]: { ...p[a.code], start_time: e.target.value } }))} />
                             </div>
                             <div className="field" style={{ flex: 1 }}>
                               <label style={{ fontSize: 11 }}>Selesai</label>
-                              <input type="time" value={st.end_time} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], end_time: e.target.value } }))} />
+                              <input type="time" value={st.end_time} onChange={(e) => setActivities((p) => ({ ...p, [a.code]: { ...p[a.code], end_time: e.target.value } }))} />
                             </div>
                             {a.unit && (
                               <div className="field" style={{ width: 90 }}>
                                 <label style={{ fontSize: 11 }}>Hasil</label>
-                                <input type="number" step="0.01" min="0" value={st.volume} onChange={(e) => setActivities((p) => ({ ...p, [a.value]: { ...p[a.value], volume: e.target.value } }))} />
+                                <input type="number" step="0.01" min="0" value={st.volume} onChange={(e) => setActivities((p) => ({ ...p, [a.code]: { ...p[a.code], volume: e.target.value } }))} />
                               </div>
                             )}
                           </div>

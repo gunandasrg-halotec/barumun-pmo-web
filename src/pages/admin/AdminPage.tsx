@@ -8,6 +8,7 @@ import ProfilePage from "./ProfilePage";
 import { IRole, ROLES as ROLE_NAMES } from "@/types";
 import { authService } from "@/services/authService";
 import { fileService } from "@/services/fileService";
+import { heavyEquipmentService } from "@/services/heavyEquipmentService";
 
 const ROLES: IRole[] = [
   {
@@ -42,7 +43,7 @@ const ROLES: IRole[] = [
   },
 ];
 
-const TABS = ["Manajemen User", "Profil Saya", "Akses & Role", "Kategori Dokumen"];
+const TABS = ["Manajemen User", "Profil Saya", "Akses & Role", "Kategori Dokumen", "Jenis Pekerjaan"];
 
 export default function AdminPage() {
   const { user: currentUser, isAdminSistem, refreshMe } = useAuth();
@@ -516,6 +517,11 @@ export default function AdminPage() {
         <FileCategoryTab isAdmin={isAdminSistem()} />
       )}
 
+      {/* Tab: Jenis Pekerjaan */}
+      {activeTab === "Jenis Pekerjaan" && (
+        <ActivityTypeTab isAdmin={isAdminSistem()} />
+      )}
+
       {/* Create User Modal */}
       {showCreate && (
         <div
@@ -730,6 +736,191 @@ function CategoryForm({
           <button type="button" className="btn secondary" onClick={onCancel} disabled={isPending}>Batal</button>
           <button type="submit" className="btn" disabled={isPending || !form.category_name}>
             {isPending ? 'Menyimpan...' : isEdit ? 'Simpan Perubahan' : 'Tambah Kategori'}
+          </button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+function ActivityTypeTab({ isAdmin }: { isAdmin: boolean }) {
+  const queryClient = useQueryClient();
+  const [showCreate, setShowCreate] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+
+  const typesQ = useQuery({
+    queryKey: ['heavy-equipment-activity-types-admin'],
+    queryFn: () => heavyEquipmentService.listActivityTypes(false),
+  });
+  const types: any[] = (typesQ.data as any)?.data ?? [];
+
+  const createMut = useMutation({
+    mutationFn: (d: any) => heavyEquipmentService.createActivityType(d),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['heavy-equipment-activity-types-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['heavy-equipment-activity-types'] });
+      setShowCreate(false);
+    },
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, ...d }: any) => heavyEquipmentService.updateActivityType(id, d),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['heavy-equipment-activity-types-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['heavy-equipment-activity-types'] });
+      setEditItem(null);
+    },
+  });
+
+  return (
+    <div className="section-card glass">
+      <div className="section-title" style={{ marginBottom: 14 }}>
+        <div>
+          <h4 style={{ margin: 0 }}>Jenis Pekerjaan Alat Berat</h4>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Kelola jenis pekerjaan yang tersedia di formulir laporan harian alat berat.</p>
+        </div>
+        {isAdmin && (
+          <button className="btn" onClick={() => setShowCreate(true)}>+ Tambah Jenis</button>
+        )}
+      </div>
+
+      {typesQ.isLoading ? (
+        <div className="loading-state">Memuat jenis pekerjaan...</div>
+      ) : typesQ.error ? (
+        <div className="danger-box">{extractError(typesQ.error)}</div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Kode</th>
+                <th>Nama</th>
+                <th>Satuan</th>
+                <th>Lintas Hari</th>
+                <th style={{ textAlign: 'right' }}>Urutan</th>
+                <th>Status</th>
+                {isAdmin && <th>Aksi</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {types.map((t: any) => (
+                <tr key={t.id}>
+                  <td style={{ fontWeight: 600, fontSize: 12 }}>{t.code}</td>
+                  <td style={{ fontSize: 13 }}>{t.name}</td>
+                  <td style={{ fontSize: 12, color: 'var(--muted)' }}>{t.unit ?? '—'}</td>
+                  <td style={{ fontSize: 12 }}>{t.allow_date_range ? 'Ya' : 'Tidak'}</td>
+                  <td style={{ fontSize: 12, textAlign: 'right' }}>{t.sort_order}</td>
+                  <td>
+                    <span className={`badge ${t.is_active ? 'done' : 'delay'}`}>
+                      {t.is_active ? 'Aktif' : 'Nonaktif'}
+                    </span>
+                  </td>
+                  {isAdmin && (
+                    <td>
+                      <div className="cluster">
+                        <button className="chip clickable" onClick={() => setEditItem(t)}>Edit</button>
+                        <button
+                          className="chip clickable"
+                          style={{ color: t.is_active ? 'var(--danger)' : 'var(--ok)' }}
+                          onClick={() => updateMut.mutate({ id: t.id, is_active: !t.is_active })}
+                        >
+                          {t.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showCreate && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowCreate(false); }}>
+          <div className="modal-window" style={{ maxWidth: 480 }}>
+            <div className="modal-head">
+              <div><h4>Tambah Jenis Pekerjaan</h4><p>Buat jenis pekerjaan baru untuk formulir laporan alat berat.</p></div>
+              <button className="modal-close" onClick={() => setShowCreate(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <ActivityTypeForm
+                onSuccess={d => createMut.mutate(d)}
+                onCancel={() => setShowCreate(false)}
+                isPending={createMut.isPending}
+                error={createMut.error ? extractError(createMut.error) : ''}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editItem && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setEditItem(null); }}>
+          <div className="modal-window" style={{ maxWidth: 480 }}>
+            <div className="modal-head">
+              <div><h4>Edit Jenis Pekerjaan</h4><p>Ubah detail jenis pekerjaan {editItem.name}.</p></div>
+              <button className="modal-close" onClick={() => setEditItem(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <ActivityTypeForm
+                initial={editItem}
+                onSuccess={d => updateMut.mutate({ id: editItem.id, ...d })}
+                onCancel={() => setEditItem(null)}
+                isPending={updateMut.isPending}
+                error={updateMut.error ? extractError(updateMut.error) : ''}
+                isEdit
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActivityTypeForm({
+  initial, onSuccess, onCancel, isPending, error, isEdit = false,
+}: { initial?: any; onSuccess: (d: any) => void; onCancel: () => void; isPending: boolean; error: string; isEdit?: boolean }) {
+  const [form, setForm] = useState({
+    code: initial?.code ?? '',
+    name: initial?.name ?? '',
+    unit: initial?.unit ?? '',
+    allow_date_range: initial?.allow_date_range ?? false,
+    sort_order: String(initial?.sort_order ?? '0'),
+  });
+
+  return (
+    <form onSubmit={e => { e.preventDefault(); onSuccess({ ...form, sort_order: parseInt(form.sort_order) || 0, unit: form.unit || null }); }}>
+      {error && <div className="danger-box" style={{ marginBottom: 12 }}>{error}</div>}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="field">
+          <label className="required">Kode</label>
+          <input value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value.toUpperCase() }))} required disabled={isEdit} placeholder="Mis. PARIT_BATAS" />
+        </div>
+        <div className="field">
+          <label>Satuan <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— opsional</span></label>
+          <input value={form.unit} onChange={e => setForm(p => ({ ...p, unit: e.target.value }))} placeholder="Mis. m, pokok" />
+        </div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label className="required">Nama</label>
+          <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} required />
+        </div>
+        <div className="field">
+          <label>Urutan tampil</label>
+          <input type="number" min="0" value={form.sort_order} onChange={e => setForm(p => ({ ...p, sort_order: e.target.value }))} />
+        </div>
+        <div className="field" style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 22 }}>
+          <input type="checkbox" id="allow_date_range" checked={form.allow_date_range} onChange={e => setForm(p => ({ ...p, allow_date_range: e.target.checked }))} style={{ width: 'auto' }} />
+          <label htmlFor="allow_date_range" style={{ margin: 0, cursor: 'pointer' }}>Boleh lintas hari</label>
+        </div>
+      </div>
+      <div className="modal-foot" style={{ padding: 0, marginTop: 4 }}>
+        <div />
+        <div className="cluster">
+          <button type="button" className="btn secondary" onClick={onCancel} disabled={isPending}>Batal</button>
+          <button type="submit" className="btn" disabled={isPending || !form.code || !form.name}>
+            {isPending ? 'Menyimpan...' : isEdit ? 'Simpan Perubahan' : 'Tambah Jenis'}
           </button>
         </div>
       </div>
