@@ -963,11 +963,25 @@ tbody tr:hover {
 .task-head,
 .task-row {
   display: grid;
-  grid-template-columns: 1fr 72px 74px;
-  gap: 12px;
+  grid-template-columns: 42px 1fr 56px 76px 76px 52px;
+  gap: 8px;
   align-items: center;
   padding: 8px 16px;
   font-size: 13px;
+}
+.task-head > span,
+.task-cell {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.task-head strong {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--green-800);
 }
 .task-row {
   height: 56px;
@@ -1038,7 +1052,7 @@ tbody tr:hover {
     rgba(42, 69, 53, 0.06) 0,
     rgba(42, 69, 53, 0.06) 1px,
     transparent 1px,
-    transparent calc(100% / 28)
+    transparent calc(100% / var(--gantt-cols, 28))
   );
 }
 .timeline-grid-row {
@@ -1114,6 +1128,77 @@ tbody tr:hover {
   font-weight: 700;
   white-space: nowrap;
 }
+
+/* ── Realisasi bar (tracking) ─────────────────────────────────────────────── */
+.bar-actual {
+  position: absolute;
+  top: 42px;
+  height: 8px;
+  border-radius: 999px;
+  z-index: 2;
+}
+.bar-actual.status-ontrack,
+.bar-actual.status-completed-ontime {
+  background: linear-gradient(90deg, #1f7a3d, #3fae63);
+}
+.bar-actual.status-ahead {
+  background: linear-gradient(90deg, #1d5fa8, #4c8fd6);
+}
+.bar-actual.status-delayed,
+.bar-actual.status-completed-late {
+  background: linear-gradient(90deg, #a83a2a, #d8593f);
+}
+.bar-actual.status-ongoing {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.35) 0,
+    rgba(255, 255, 255, 0.35) 3px,
+    transparent 3px,
+    transparent 6px
+  );
+}
+
+/* ── Milestone diamond ────────────────────────────────────────────────────── */
+.milestone {
+  position: absolute;
+  top: 23px;
+  width: 14px;
+  height: 14px;
+  transform: translateX(-7px) rotate(45deg);
+  border-radius: 2px;
+  z-index: 2;
+  box-shadow: 0 4px 8px rgba(24, 37, 29, 0.2);
+}
+.milestone.status-ontrack,
+.milestone.status-completed-ontime { background: #2d7d46; }
+.milestone.status-ahead            { background: #2f6fb3; }
+.milestone.status-delayed,
+.milestone.status-completed-late   { background: var(--danger); }
+.milestone.status-notstarted,
+.milestone.status-nodata           { background: #9aa5a0; }
+
+/* ── GROUP summary bracket bar ────────────────────────────────────────────── */
+.bar.summary-bracket {
+  height: 8px;
+  top: 24px;
+  border-radius: 2px;
+  background: var(--text, #1c2620);
+  box-shadow: none;
+}
+.bar.summary-bracket::before,
+.bar.summary-bracket::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--text, #1c2620);
+}
+.bar.summary-bracket::before { left: -1px; }
+.bar.summary-bracket::after  { right: -1px; }
+
 .legend {
   display: flex;
   gap: 10px;

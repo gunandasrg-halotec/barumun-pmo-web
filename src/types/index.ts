@@ -247,6 +247,15 @@ export interface DashboardData {
   pending_cost_review: number;
 }
 
+export type ScheduleStatus =
+  | 'NO_DATA'
+  | 'NOT_STARTED'
+  | 'ON_TRACK'
+  | 'AHEAD'
+  | 'DELAYED'
+  | 'COMPLETED_ON_TIME'
+  | 'COMPLETED_LATE';
+
 export interface GanttNode {
   id: string;
   parent_node_id: string | null;
@@ -264,6 +273,10 @@ export interface GanttNode {
   actual_volume: number;
   progress_percent: number;
   weight_percent: number;
+  actual_start_date: string | null;
+  actual_end_date: string | null;
+  expected_progress_percent: number | null;
+  schedule_status: ScheduleStatus;
 }
 
 export interface SCurveSeries {
