@@ -323,7 +323,7 @@ export default function GanttPage() {
         aktualMulaiLabel: node.actual_start_date ?? '—',
         aktualSelesaiLabel: node.actual_end_date ?? '—',
         aktualDurLabel: !isGroup && node.actual_start_date
-          ? `${Math.max(1, daysBetween(node.actual_start_date, node.actual_end_date ?? today))}h`
+          ? `${Math.max(1, daysBetween(node.actual_start_date, node.actual_end_date ?? today) + 1)}h`
           : '—',
         pctLabel: `${node.progress_percent}%`,
         pctColor,
