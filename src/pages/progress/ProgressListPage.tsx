@@ -33,6 +33,16 @@ const STATUS_FILTERS = [
   { value: "REJECTED", label: "Ditolak" },
 ];
 
+// Only approved entries count toward realisasi — rejected/pending entries
+// must not inflate volume/cost totals or mark an item as done.
+const APPROVED_STATUSES = new Set(["APPROVED", "AUTO_APPROVED"]);
+function isApprovedEntry(e: any): boolean {
+  return APPROVED_STATUSES.has(e?.status);
+}
+function sumApproved(entries: any[], field: string): number {
+  return entries.reduce((s: number, e: any) => s + (isApprovedEntry(e) ? Number(e[field] ?? 0) : 0), 0);
+}
+
 function flattenNodes(
   nodes: WbdNode[],
   prefix = "",
@@ -130,8 +140,8 @@ export default function ProgressListPage() {
   const hasBaseline = (projectQ.data as any)?.data?.has_active_baseline;
 
   // Use server-side aggregates from meta for accurate totals across all pages
-  const totalVolReal  = meta?.total_volume  ?? entries.reduce((s: number, e: any) => s + Number(e.progress_volume ?? 0), 0);
-  const totalCostReal = meta?.total_cost    ?? entries.reduce((s: number, e: any) => s + Number(e.actual_cost ?? 0), 0);
+  const totalVolReal  = meta?.total_volume  ?? sumApproved(entries, "progress_volume");
+  const totalCostReal = meta?.total_cost    ?? sumApproved(entries, "actual_cost");
   const pendingCount  = meta?.pending_count ?? entries.filter((e: any) => e.status === "PENDING_PM_APPROVAL" || e.status === "PENDING_DIRECTOR_APPROVAL").length;
 
   // Group entries by wbd_node_id
@@ -159,7 +169,7 @@ export default function ProgressListPage() {
       .map((g) => {
         const latestRem = g.nodeInfo?.latest_remaining_volume;
         const volPlan = Number(g.wbdNode?.volume ?? g.nodeInfo?.volume ?? 0);
-        const totalVolReal = g.entries.reduce((s: number, e: any) => s + Number(e.progress_volume ?? 0), 0);
+        const totalVolReal = sumApproved(g.entries, "progress_volume");
         const volSisa = latestRem != null ? Number(latestRem) : Math.max(0, volPlan - totalVolReal);
         const isDone = volSisa === 0;
         return { ...g, isDone };
@@ -185,7 +195,7 @@ export default function ProgressListPage() {
   const totalSisaBiaya = useMemo(() =>
     filteredGroups.reduce((sum, g) => {
       const costPlan = Number(g.wbdNode?.planned_cost ?? 0);
-      const totalCostReal = g.entries.reduce((s: number, e: any) => s + Number(e.actual_cost ?? 0), 0);
+      const totalCostReal = sumApproved(g.entries, "actual_cost");
       return sum + (costPlan - totalCostReal);
     }, 0),
   [filteredGroups]);
@@ -450,8 +460,8 @@ export default function ProgressListPage() {
                     // Group-level aggregates
                     const volPlan = Number(wn?.volume ?? ni?.volume ?? 0);
                     const costPlan = Number(wn?.planned_cost ?? 0);
-                    const totalVolReal = group.entries.reduce((s: number, e: any) => s + Number(e.progress_volume ?? 0), 0);
-                    const totalCostReal = group.entries.reduce((s: number, e: any) => s + Number(e.actual_cost ?? 0), 0);
+                    const totalVolReal = sumApproved(group.entries, "progress_volume");
+                    const totalCostReal = sumApproved(group.entries, "actual_cost");
 
                     // Use latest_remaining_volume from node if available
                     const latestRem = ni?.latest_remaining_volume;
