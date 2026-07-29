@@ -7,6 +7,8 @@
   --gm-accent: #ec3013;
   --gm-accent-600: #dd2b0f;
   --gm-accent-700: #ae1800;
+  --gm-actual: #1f7a3d;
+  --gm-actual-700: #145029;
   --gm-divider: color-mix(in srgb, #201e1d 40%, transparent);
   --gm-neutral-200: #eae7e7;
   --gm-neutral-300: #d7d3d3;
@@ -199,7 +201,7 @@
   position: sticky;
   left: 0;
   z-index: 7;
-  width: 556px;
+  width: 720px;
   flex: none;
   background: var(--gm-bg);
   border-right: 2px solid var(--gm-divider);
@@ -218,6 +220,8 @@
 .gm-col-durasi { width: 52px; flex: none; text-align: right; }
 .gm-col-mulai { width: 82px; flex: none; text-align: right; }
 .gm-col-selesai { width: 82px; flex: none; text-align: right; }
+.gm-col-amulai { width: 82px; flex: none; text-align: right; color: var(--gm-actual-700); }
+.gm-col-aselesai { width: 82px; flex: none; text-align: right; color: var(--gm-actual-700); }
 .gm-col-pct { width: 44px; flex: none; text-align: right; }
 
 .gm-tier-row {
@@ -245,7 +249,7 @@
   position: sticky;
   left: 0;
   z-index: 4;
-  width: 556px;
+  width: 720px;
   flex: none;
   background: var(--gm-bg);
   border-right: 2px solid var(--gm-divider);
@@ -301,6 +305,7 @@
 }
 .gm-dur-cell { width: 52px; flex: none; text-align: right; font-family: var(--gm-mono); font-size: 10.5px; color: color-mix(in srgb, var(--gm-ink) 60%, transparent); }
 .gm-date-cell { width: 82px; flex: none; text-align: right; font-family: var(--gm-mono); font-size: 10.5px; color: color-mix(in srgb, var(--gm-ink) 65%, transparent); }
+.gm-date-actual { color: var(--gm-actual-700); }
 .gm-pct-cell { width: 44px; flex: none; text-align: right; font: 800 11px/1 var(--gm-font); letter-spacing: 0.02em; }
 
 .gm-bar-plan {

@@ -10,6 +10,7 @@ import './gantt-modernist.css';
 // ─── Constants ────────────────────────────────────────────────────────────
 
 const ROWH = 30;
+const LEFT_W = 720; // sticky left task-table width; must match .gm-header-cell / .gm-left-col in CSS
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const PPD: Record<Zoom, number> = { harian: 24, mingguan: 12, bulanan: 6 };
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -61,6 +62,8 @@ interface VisibleRow {
   durLabel: string;
   mulaiLabel: string;
   selesaiLabel: string;
+  aktualMulaiLabel: string;
+  aktualSelesaiLabel: string;
   pctLabel: string;
   pctColor: 'muted' | 'accent' | 'ink';
   late: boolean;
@@ -316,6 +319,8 @@ export default function GanttPage() {
         durLabel: kind === 'task' ? `${node.duration_days ?? 0}h` : '—',
         mulaiLabel: node.start_date ?? '—',
         selesaiLabel: node.end_date ?? '—',
+        aktualMulaiLabel: node.actual_start_date ?? '—',
+        aktualSelesaiLabel: node.actual_end_date ?? '—',
         pctLabel: `${node.progress_percent}%`,
         pctColor,
         late, hasData, real, tagText,
@@ -407,8 +412,8 @@ export default function GanttPage() {
   useLayoutEffect(() => {
     const el = paneRef.current;
     if (!el) return;
-    const target = 556 + todayX - (el.clientWidth - 556) / 2;
-    el.scrollLeft = Math.max(0, Math.min(target, 556 + chartWidth - el.clientWidth));
+    const target = LEFT_W + todayX - (el.clientWidth - LEFT_W) / 2;
+    el.scrollLeft = Math.max(0, Math.min(target, LEFT_W + chartWidth - el.clientWidth));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoom]);
 
@@ -512,6 +517,8 @@ export default function GanttPage() {
               <span className="gm-col-durasi">Durasi</span>
               <span className="gm-col-mulai">Mulai</span>
               <span className="gm-col-selesai">Selesai</span>
+              <span className="gm-col-amulai">Akt. Mulai</span>
+              <span className="gm-col-aselesai">Akt. Selesai</span>
               <span className="gm-col-pct">%</span>
             </div>
             <div style={{ width: chartWidth, flex: 'none', background: 'var(--gm-bg)' }}>
@@ -630,6 +637,8 @@ export default function GanttPage() {
                     <span className="gm-dur-cell">{row.durLabel}</span>
                     <span className="gm-date-cell">{row.mulaiLabel}</span>
                     <span className="gm-date-cell">{row.selesaiLabel}</span>
+                    <span className="gm-date-cell gm-date-actual">{row.aktualMulaiLabel}</span>
+                    <span className="gm-date-cell gm-date-actual">{row.aktualSelesaiLabel}</span>
                     <span
                       className="gm-pct-cell"
                       style={{ color: row.pctColor === 'muted' ? 'color-mix(in srgb,var(--gm-ink) 45%,transparent)' : row.pctColor === 'accent' ? 'var(--gm-accent-700)' : 'var(--gm-ink)' }}
@@ -688,8 +697,8 @@ export default function GanttPage() {
                         className="gm-bar-real"
                         style={{
                           left: row.real.x, width: row.real.w,
-                          background: row.late ? 'var(--gm-accent)' : 'var(--gm-ink)',
-                          opacity: row.real.done ? 0.75 : 1,
+                          background: row.late ? 'var(--gm-accent)' : 'var(--gm-actual)',
+                          opacity: row.real.done ? 0.85 : 1,
                         }}
                       />
                     )}
@@ -734,7 +743,7 @@ export default function GanttPage() {
           Rencana
         </span>
         <span className="gm-legend-item">
-          <span className="gm-legend-swatch" style={{ background: 'var(--gm-ink)', height: 8 }} />
+          <span className="gm-legend-swatch" style={{ background: 'var(--gm-actual)', height: 8 }} />
           Realisasi
         </span>
         <span className="gm-legend-item">
