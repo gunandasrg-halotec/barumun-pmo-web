@@ -10,7 +10,7 @@ import './gantt-modernist.css';
 // ─── Constants ────────────────────────────────────────────────────────────
 
 const ROWH = 30;
-const LEFT_W = 720; // sticky left task-table width; must match .gm-header-cell / .gm-left-col in CSS
+const LEFT_W = 772; // sticky left task-table width; must match .gm-header-cell / .gm-left-col in CSS
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const PPD: Record<Zoom, number> = { harian: 24, mingguan: 12, bulanan: 6 };
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -64,6 +64,7 @@ interface VisibleRow {
   selesaiLabel: string;
   aktualMulaiLabel: string;
   aktualSelesaiLabel: string;
+  aktualDurLabel: string;
   pctLabel: string;
   pctColor: 'muted' | 'accent' | 'ink';
   late: boolean;
@@ -321,6 +322,9 @@ export default function GanttPage() {
         selesaiLabel: node.end_date ?? '—',
         aktualMulaiLabel: node.actual_start_date ?? '—',
         aktualSelesaiLabel: node.actual_end_date ?? '—',
+        aktualDurLabel: !isGroup && node.actual_start_date
+          ? `${Math.max(0, daysBetween(node.actual_start_date, node.actual_end_date ?? today))}h`
+          : '—',
         pctLabel: `${node.progress_percent}%`,
         pctColor,
         late, hasData, real, tagText,
@@ -519,6 +523,7 @@ export default function GanttPage() {
               <span className="gm-col-selesai">Selesai</span>
               <span className="gm-col-amulai">Akt. Mulai</span>
               <span className="gm-col-aselesai">Akt. Selesai</span>
+              <span className="gm-col-adurasi">Akt. Durasi</span>
               <span className="gm-col-pct">%</span>
             </div>
             <div style={{ width: chartWidth, flex: 'none', background: 'var(--gm-bg)' }}>
@@ -639,6 +644,7 @@ export default function GanttPage() {
                     <span className="gm-date-cell">{row.selesaiLabel}</span>
                     <span className="gm-date-cell gm-date-actual">{row.aktualMulaiLabel}</span>
                     <span className="gm-date-cell gm-date-actual">{row.aktualSelesaiLabel}</span>
+                    <span className="gm-adur-cell">{row.aktualDurLabel}</span>
                     <span
                       className="gm-pct-cell"
                       style={{ color: row.pctColor === 'muted' ? 'color-mix(in srgb,var(--gm-ink) 45%,transparent)' : row.pctColor === 'accent' ? 'var(--gm-accent-700)' : 'var(--gm-ink)' }}
