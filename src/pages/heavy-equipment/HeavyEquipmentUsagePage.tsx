@@ -20,6 +20,7 @@ import {
   type HeavyEquipmentActivityTypeConfig,
   type HeavyEquipmentLog,
   type HeavyEquipmentLogActivity,
+  type FuelStockData,
 } from "../../types";
 
 const TABS = ["Analitik", "Data Mentah"];
@@ -91,6 +92,17 @@ export default function HeavyEquipmentUsagePage() {
     enabled: activeTab === "Data Mentah",
   });
   const logs: HeavyEquipmentLog[] = (logsQ.data as any)?.data ?? [];
+
+  const fuelStockQ = useQuery({
+    queryKey: ["heavy-equipment-fuel-stock", filters.kebun, filters.date_from, filters.date_to],
+    queryFn: () => heavyEquipmentService.getFuelStock({
+      kebun: filters.kebun || undefined,
+      date_from: filters.date_from || undefined,
+      date_to: filters.date_to || undefined,
+    }),
+    enabled: activeTab === "Data Mentah",
+  });
+  const fuelStock = (fuelStockQ.data as any)?.data as { solar: FuelStockData; dex_lite: FuelStockData } | undefined;
 
   const setF = (k: keyof typeof filters, v: string) => setFilters((p) => ({ ...p, [k]: v }));
 
@@ -228,6 +240,45 @@ export default function HeavyEquipmentUsagePage() {
 
       {activeTab === "Data Mentah" && (
         <div>
+          {/* ── Kartu stock BBM ── */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 18 }}>
+            {([
+              { key: "solar", label: "Solar", icon: "☀️", accent: "#d4a537", bg: "#fef3dc", textColor: "#7a5800" },
+              { key: "dex_lite", label: "Dex Lite", icon: "⛽", accent: "#0f6e56", bg: "#e1f5ee", textColor: "#0f6e56" },
+            ] as const).map(({ key, label, icon, accent, bg, textColor }) => {
+              const d: FuelStockData | undefined = fuelStock?.[key];
+              return (
+                <div key={key} className="section-card glass" style={{ border: `1.5px solid ${accent}30`, padding: "16px 18px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{icon}</div>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)" }}>Stock BBM</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: textColor }}>{label}</div>
+                    </div>
+                  </div>
+                  {fuelStockQ.isLoading ? (
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>Memuat...</div>
+                  ) : fuelStockQ.error ? (
+                    <div style={{ fontSize: 12, color: "var(--danger)" }}>Gagal memuat</div>
+                  ) : d ? (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      <div style={{ background: bg, borderRadius: 8, padding: "10px 12px" }}>
+                        <div style={{ fontSize: 11, color: textColor, fontWeight: 600, marginBottom: 2 }}>Diterima</div>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: textColor, fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.total_received, 0)} <span style={{ fontSize: 12, fontWeight: 600 }}>L</span></div>
+                      </div>
+                      <div style={{ background: accent + "15", borderRadius: 8, padding: "10px 12px", border: `1px solid ${accent}40` }}>
+                        <div style={{ fontSize: 11, color: textColor, fontWeight: 600, marginBottom: 2 }}>Saldo</div>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: textColor, fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.saldo, 0)} <span style={{ fontSize: 12, fontWeight: 600 }}>L</span></div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>Belum ada data</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
           <div className="section-card glass" style={{ marginBottom: 18 }}>
             <div className="section-title" style={{ marginBottom: 0 }}>
               <div>

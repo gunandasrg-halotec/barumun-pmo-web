@@ -3,6 +3,8 @@ import { heavyEquipmentPublicService } from "../../services/heavyEquipmentPublic
 import { extractError, formatNumber } from "../../utils/format";
 import {
   AREA_OPTIONS,
+  type FuelStockReceiptEntry,
+  type FuelType,
   type HeavyEquipment,
   type HeavyEquipmentActivityTypeConfig,
   type HeavyEquipmentCostItem,
@@ -179,6 +181,53 @@ export default function PublicHeavyEquipmentLogPage() {
   const [viewPhoto, setViewPhoto] = useState<string | null>(null);
   const previews = useMemo(() => photos.map((f) => URL.createObjectURL(f)), [photos]);
   useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
+
+  const [activePublicTab, setActivePublicTab] = useState<"laporan" | "bbm">("laporan");
+
+  // ── State tab Penerimaan BBM ──
+  const defaultBbmForm = () => ({ fuelType: "solar" as FuelType, qty20: 0, qty30: 0, qty40: 0 });
+  const [bbmDate, setBbmDate] = useState(todayISO());
+  const [bbmForm, setBbmForm] = useState(defaultBbmForm());
+  const [bbmEntries, setBbmEntries] = useState<FuelStockReceiptEntry[]>([]);
+  const [bbmSubmitting, setBbmSubmitting] = useState(false);
+  const [bbmError, setBbmError] = useState("");
+  const [bbmSuccess, setBbmSuccess] = useState(false);
+
+  const bbmTotal = bbmEntries.reduce((s, e) => s + e.qty_20l * 20 + e.qty_30l * 30 + e.qty_40l * 40, 0);
+
+  function bbmAddEntry() {
+    const total = bbmForm.qty20 * 20 + bbmForm.qty30 * 30 + bbmForm.qty40 * 40;
+    if (total === 0) return;
+    setBbmEntries((prev) => [
+      ...prev,
+      { fuel_type: bbmForm.fuelType, qty_20l: bbmForm.qty20, qty_30l: bbmForm.qty30, qty_40l: bbmForm.qty40 },
+    ]);
+    setBbmForm(defaultBbmForm());
+  }
+
+  async function bbmSubmit() {
+    if (bbmEntries.length === 0) return;
+    const usePin = pin || localStorage.getItem(LS_PIN) || "";
+    const kebun = form.kebun;
+    if (!kebun) { setBbmError("Kebun belum dipilih. Isi terlebih dahulu di tab Laporan Harian."); return; }
+    setBbmSubmitting(true);
+    setBbmError("");
+    try {
+      await heavyEquipmentPublicService.submitFuelReceipts(usePin, {
+        kebun,
+        receipt_date: bbmDate,
+        receipts: bbmEntries,
+      });
+      setBbmEntries([]);
+      setBbmForm(defaultBbmForm());
+      setBbmSuccess(true);
+      setTimeout(() => setBbmSuccess(false), 3000);
+    } catch (e) {
+      setBbmError(extractError(e));
+    } finally {
+      setBbmSubmitting(false);
+    }
+  }
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -485,13 +534,141 @@ export default function PublicHeavyEquipmentLogPage() {
     screen = (
       <div className="login-page" style={{ alignItems: "flex-start", padding: "24px 16px" }}>
         <div className="login-card" style={{ width: "min(560px, 100%)", padding: 24 }}>
-          <div style={{ textAlign: "center", marginBottom: 18 }}>
+          <div style={{ textAlign: "center", marginBottom: 14 }}>
             <div className="brand-tag" style={{ justifyContent: "center", marginBottom: 8 }}>
               Barumun Plantation
             </div>
             <h2 style={{ fontSize: 18, color: "var(--green-800)" }}>Laporan Harian Alat Berat</h2>
           </div>
 
+          {/* Tab bar */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: "2px solid var(--line)", marginBottom: 16 }}>
+            {(["laporan", "bbm"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setActivePublicTab(t)}
+                style={{
+                  background: "none", border: "none", padding: "9px 4px", fontSize: 13,
+                  fontWeight: activePublicTab === t ? 700 : 500,
+                  color: activePublicTab === t ? "var(--green-700)" : "var(--muted)",
+                  borderBottom: activePublicTab === t ? "2px solid var(--green-700)" : "2px solid transparent",
+                  marginBottom: -2, cursor: "pointer",
+                }}
+              >
+                {t === "laporan" ? "Laporan harian" : "Penerimaan BBM"}
+              </button>
+            ))}
+          </div>
+
+          {activePublicTab === "bbm" && (
+            <div style={{ display: "grid", gap: 14 }}>
+              {bbmSuccess && (
+                <div style={{ background: "var(--green-200)", border: "1px solid var(--green-500)", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "var(--green-800)", fontWeight: 600 }}>
+                  Penerimaan BBM berhasil disimpan!
+                </div>
+              )}
+              {bbmError && <div className="danger-box">{bbmError}</div>}
+
+              <div className="field">
+                <label className="required">Tanggal penerimaan</label>
+                <input type="date" value={bbmDate} onChange={(e) => setBbmDate(e.target.value)} style={{ width: "100%" }} />
+              </div>
+
+              <div className="field">
+                <label className="required">Jenis BBM</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {([["solar", "Solar", "#d4a537", "#fef3dc", "#7a5800"], ["dex_lite", "Dex Lite", "#0f6e56", "#e1f5ee", "#0f6e56"]] as const).map(([val, label, border, bg, color]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setBbmForm((p) => ({ ...p, fuelType: val }))}
+                      style={{
+                        border: `2px solid ${bbmForm.fuelType === val ? border : "var(--line)"}`,
+                        borderRadius: 10, padding: "10px 8px", fontSize: 13, fontWeight: 700,
+                        background: bbmForm.fuelType === val ? bg : "white",
+                        color: bbmForm.fuelType === val ? color : "var(--muted)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="field">
+                <label>Jumlah jirigen</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                  {([["qty20", 20], ["qty30", 30], ["qty40", 40]] as const).map(([key, liter]) => (
+                    <div key={key} style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "10px 8px", textAlign: "center", background: "white" }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: "var(--green-700)" }}>{liter}</div>
+                      <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 8 }}>Liter / jirigen</div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                        <button type="button" onClick={() => setBbmForm((p) => ({ ...p, [key]: Math.max(0, p[key] - 1) }))}
+                          style={{ width: 24, height: 24, borderRadius: 6, border: "1px solid var(--line)", background: "var(--green-200)", color: "var(--green-700)", fontSize: 16, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+                        <span style={{ fontWeight: 700, minWidth: 18, textAlign: "center" }}>{bbmForm[key]}</span>
+                        <button type="button" onClick={() => setBbmForm((p) => ({ ...p, [key]: p[key] + 1 }))}
+                          style={{ width: 24, height: 24, borderRadius: 6, border: "1px solid var(--line)", background: "var(--green-200)", color: "var(--green-700)", fontSize: 16, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {bbmEntries.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 8 }}>Data yang akan disimpan</div>
+                  <div style={{ display: "grid", gap: 7 }}>
+                    {bbmEntries.map((e, i) => {
+                      const vol = e.qty_20l * 20 + e.qty_30l * 30 + e.qty_40l * 40;
+                      const parts = [e.qty_20l && `${e.qty_20l}×20L`, e.qty_30l && `${e.qty_30l}×30L`, e.qty_40l && `${e.qty_40l}×40L`].filter(Boolean).join(" · ");
+                      const isSolar = e.fuel_type === "solar";
+                      return (
+                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: "white", border: "1px solid var(--line)", borderRadius: 12, padding: "10px 12px" }}>
+                          <div style={{ width: 32, height: 32, borderRadius: 8, background: isSolar ? "#fef3dc" : "#e1f5ee", color: isSolar ? "#8a6200" : "#0f6e56", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 14, fontWeight: 700 }}>
+                            {isSolar ? "☀" : "D"}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700 }}>{isSolar ? "Solar" : "Dex Lite"}</div>
+                            <div style={{ fontSize: 11, color: "var(--muted)" }}>{parts}</div>
+                          </div>
+                          <div style={{ fontWeight: 700, color: "var(--green-700)", fontSize: 14 }}>{vol} L</div>
+                          <button type="button" onClick={() => setBbmEntries((p) => p.filter((_, j) => j !== i))}
+                            style={{ width: 24, height: 24, borderRadius: 6, background: "#faeae6", border: "none", color: "#cb5f45", cursor: "pointer", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>×</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ background: "var(--green-200)", borderRadius: 10, padding: "10px 12px", display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                    <span style={{ fontSize: 12, color: "var(--green-700)", fontWeight: 600 }}>Total semua BBM</span>
+                    <strong style={{ color: "var(--green-700)" }}>{bbmTotal} L</strong>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={bbmAddEntry}
+                  disabled={bbmForm.qty20 + bbmForm.qty30 + bbmForm.qty40 === 0}
+                  style={{ padding: "11px", borderRadius: 12, border: "1.5px solid var(--green-700)", background: "white", color: "var(--green-700)", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                >
+                  + Tambah data
+                </button>
+                <button
+                  type="button"
+                  onClick={bbmSubmit}
+                  disabled={bbmSubmitting || bbmEntries.length === 0}
+                  style={{ padding: "11px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#2e5f3d,#5f9a67)", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                >
+                  {bbmSubmitting ? "Menyimpan..." : "Simpan data"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activePublicTab === "laporan" && <>
           {draftsBanner}
 
           {(!online || offlineMode) && (

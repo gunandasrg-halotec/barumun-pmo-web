@@ -1,6 +1,7 @@
 import api from "./api";
 import type {
   ApiResponse,
+  FuelStock,
   PaginatedResponse,
   HeavyEquipment,
   HeavyEquipmentActivityTypeConfig,
@@ -90,6 +91,12 @@ export const heavyEquipmentService = {
       `/heavy-equipment/activity-types/${id}`,
       d
     );
+    return res.data;
+  },
+
+  // ── Stock BBM ──
+  getFuelStock: async (params: { kebun?: string; date_from?: string; date_to?: string } = {}) => {
+    const res = await api.get<ApiResponse<FuelStock>>("/heavy-equipment/fuel-stock", { params });
     return res.data;
   },
 

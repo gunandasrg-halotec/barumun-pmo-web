@@ -1,6 +1,7 @@
 import publicApi from "./publicApi";
 import type {
   ApiResponse,
+  FuelStockReceiptEntry,
   HeavyEquipment,
   HeavyEquipmentActivityTypeConfig,
   HeavyEquipmentCostItem,
@@ -37,6 +38,18 @@ export const heavyEquipmentPublicService = {
   listActivityTypes: async (p: string) => {
     const res = await publicApi.get<ApiResponse<HeavyEquipmentActivityTypeConfig[]>>(
       "/public/heavy-equipment/activity-types",
+      pin(p)
+    );
+    return res.data;
+  },
+
+  submitFuelReceipts: async (
+    p: string,
+    payload: { kebun: string; receipt_date: string; receipts: FuelStockReceiptEntry[] }
+  ) => {
+    const res = await publicApi.post<ApiResponse<unknown>>(
+      "/public/heavy-equipment/fuel-receipts",
+      payload,
       pin(p)
     );
     return res.data;

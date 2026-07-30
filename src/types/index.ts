@@ -411,6 +411,37 @@ export interface HeavyEquipmentCostItem {
   updated_at?: string;
 }
 
+export type FuelType = "solar" | "dex_lite";
+
+export interface FuelStockReceiptEntry {
+  fuel_type: FuelType;
+  qty_20l: number;
+  qty_30l: number;
+  qty_40l: number;
+}
+
+export interface FuelStockLedgerEntry {
+  id: string;
+  receipt_date: string;
+  kebun: string;
+  qty_20l: number;
+  qty_30l: number;
+  qty_40l: number;
+  total_liters: number;
+  saldo: number;
+}
+
+export interface FuelStockData {
+  total_received: number;
+  saldo: number;
+  entries: FuelStockLedgerEntry[];
+}
+
+export interface FuelStock {
+  solar: FuelStockData;
+  dex_lite: FuelStockData;
+}
+
 export interface HeavyEquipmentActivityTypeConfig {
   id: string;
   code: string;
