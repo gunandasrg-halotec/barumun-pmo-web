@@ -906,7 +906,7 @@ export default function PublicHeavyEquipmentLogPage() {
                               </div>
                             )}
                           </div>
-                        )}
+                        ))}
                       {st.enabled && a.has_description && (
                         <div className="field" style={{ marginTop: 8 }}>
                           <label style={{ fontSize: 11 }}>
