@@ -36,6 +36,7 @@ type FormShape = {
   operator: string;
   kenek: string;
   fuel_liters: string;
+  fuel_liters_dex_lite: string;
   work_morning_start: string;
   work_morning_end: string;
   work_afternoon_start: string;
@@ -99,6 +100,7 @@ const defaultForm = (): FormShape => ({
   operator: "",
   kenek: "",
   fuel_liters: "",
+  fuel_liters_dex_lite: "",
   work_morning_start: "08:00",
   work_morning_end: "12:00",
   work_afternoon_start: "13:00",
@@ -772,7 +774,16 @@ export default function PublicHeavyEquipmentLogPage() {
               </div>
               <div className="field">
                 <label>BBM (liter)</label>
-                <input type="number" step="0.01" min="0" value={form.fuel_liters} onChange={(e) => set("fuel_liters", e.target.value)} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: "#7a5800", fontWeight: 600, marginBottom: 4 }}>☀ Solar</div>
+                    <input type="number" step="0.01" min="0" value={form.fuel_liters} onChange={(e) => set("fuel_liters", e.target.value)} placeholder="0" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: "#0f6e56", fontWeight: 600, marginBottom: 4 }}>⛽ Dex Lite</div>
+                    <input type="number" step="0.01" min="0" value={form.fuel_liters_dex_lite} onChange={(e) => set("fuel_liters_dex_lite", e.target.value)} placeholder="0" />
+                  </div>
+                </div>
               </div>
               <div className="field">
                 <label className="required">Operator</label>

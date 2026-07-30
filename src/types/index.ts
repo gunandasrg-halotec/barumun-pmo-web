@@ -501,6 +501,7 @@ export interface HeavyEquipmentLog {
   operator: string;
   kenek: string | null;
   fuel_liters: number | null;
+  fuel_liters_dex_lite: number | null;
   work_morning_start: string | null;
   work_morning_end: string | null;
   work_afternoon_start: string | null;
