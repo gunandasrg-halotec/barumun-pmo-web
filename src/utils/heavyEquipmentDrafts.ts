@@ -12,7 +12,7 @@ export interface HeavyEquipmentDraft {
   form: Record<string, string>;
   activities: Record<
     string,
-    { enabled: boolean; start_date: string; end_date: string; start_time: string; end_time: string; volume: string }
+    { enabled: boolean; start_date: string; end_date: string; start_time: string; end_time: string; volume: string; description: string; repair_cost: string }
   >;
   costs: Record<string, { amount: string }>;
   photos: File[];
