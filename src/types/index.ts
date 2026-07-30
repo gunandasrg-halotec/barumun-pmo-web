@@ -451,6 +451,8 @@ export interface HeavyEquipmentActivityTypeConfig {
   name: string;
   unit: string | null;
   allow_date_range: boolean;
+  has_description: boolean;
+  has_repair_cost: boolean;
   sort_order: number;
   is_active: boolean;
 }
@@ -475,6 +477,8 @@ export interface HeavyEquipmentLogActivity {
   end_time: string | null;
   volume: number | null;
   unit: string | null;
+  description?: string | null;
+  repair_cost?: number | null;
 }
 
 export interface HeavyEquipmentLogCost {

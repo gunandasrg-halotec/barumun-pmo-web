@@ -582,8 +582,11 @@ function RawDataByActivity({
                     <th>Sore Selesai</th>
                     <th>Mulai</th>
                     <th>Selesai</th>
+                    <th>Tgl s/d</th>
                     {actType.unit && <th style={{ textAlign: "right" }}>Hasil</th>}
-                    {actType.unit && <th style={{ textAlign: "right" }}>s/d</th>}
+                    {actType.unit && <th style={{ textAlign: "right" }}>Kum.</th>}
+                    {actType.has_description && <th>Ket. Pekerjaan</th>}
+                    {actType.has_repair_cost && <th style={{ textAlign: "right" }}>Biaya Perbaikan</th>}
                     <th>Keterangan</th>
                     <th style={{ textAlign: "center" }}>Foto</th>
                   </tr>
@@ -609,10 +612,21 @@ function RawDataByActivity({
                         <td style={{ fontSize: 12 }}>{log.work_afternoon_end ?? "—"}</td>
                         <td style={{ fontSize: 12 }}>{start}</td>
                         <td style={{ fontSize: 12 }}>{end}</td>
+                        <td style={{ fontSize: 12 }}>
+                          {activity.end_date && activity.end_date !== log.log_date ? shortDate(activity.end_date) : "—"}
+                        </td>
                         {actType.unit && (
                           <td style={{ fontSize: 12, textAlign: "right" }}>{activity.volume != null ? formatNumber(activity.volume, 0) : "—"}</td>
                         )}
                         {actType.unit && <td style={{ fontSize: 12, textAlign: "right" }}>{formatNumber(cumVolume, 0)}</td>}
+                        {actType.has_description && (
+                          <td style={{ fontSize: 12, maxWidth: 200 }}>{activity.description ?? "—"}</td>
+                        )}
+                        {actType.has_repair_cost && (
+                          <td style={{ fontSize: 12, textAlign: "right" }}>
+                            {activity.repair_cost != null ? `Rp ${formatNumber(activity.repair_cost, 0)}` : "—"}
+                          </td>
+                        )}
                         <td style={{ fontSize: 12, maxWidth: 160 }}>{log.note ?? "—"}</td>
                         <td style={{ fontSize: 12, textAlign: "center" }}>{log.photos?.length ?? 0}</td>
                       </tr>

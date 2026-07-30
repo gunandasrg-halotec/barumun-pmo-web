@@ -24,6 +24,8 @@ interface ActivityState {
   start_time: string;
   end_time: string;
   volume: string;
+  description: string;
+  repair_cost: string;
 }
 interface CostState {
   amount: string;
@@ -88,7 +90,7 @@ const emptyActivities = (types: HeavyEquipmentActivityTypeConfig[]): Record<stri
   Object.fromEntries(
     types.map((a) => [
       a.code,
-      { enabled: false, start_date: "", end_date: "", start_time: "", end_time: "", volume: "" },
+      { enabled: false, start_date: "", end_date: "", start_time: "", end_time: "", volume: "", description: "", repair_cost: "" },
     ])
   );
 
@@ -135,6 +137,8 @@ function buildFormData(
     if (st.end_time) fd.append(`activities[${ai}][end_time]`, st.end_time);
     if (st.volume !== "") fd.append(`activities[${ai}][volume]`, st.volume);
     if (a.unit) fd.append(`activities[${ai}][unit]`, a.unit);
+    if (st.description !== "") fd.append(`activities[${ai}][description]`, st.description);
+    if (st.repair_cost !== "") fd.append(`activities[${ai}][repair_cost]`, st.repair_cost);
     ai += 1;
   });
   let ci = 0;
@@ -828,7 +832,7 @@ export default function PublicHeavyEquipmentLogPage() {
               </p>
               <div style={{ display: "grid", gap: 8 }}>
                 {activityTypes.map((a) => {
-                  const st = activities[a.code] ?? { enabled: false, start_date: "", end_date: "", start_time: "", end_time: "", volume: "" };
+                  const st = activities[a.code] ?? { enabled: false, start_date: "", end_date: "", start_time: "", end_time: "", volume: "", description: "", repair_cost: "" };
                   return (
                     <div
                       key={a.code}
@@ -902,7 +906,32 @@ export default function PublicHeavyEquipmentLogPage() {
                               </div>
                             )}
                           </div>
-                        ))}
+                        )}
+                      {st.enabled && a.has_description && (
+                        <div className="field" style={{ marginTop: 8 }}>
+                          <label style={{ fontSize: 11 }}>
+                            {a.code === "PERBAIKAN_MEKANIK" ? "Perbaikan yang dilakukan" : "Catatan kerusakan"}
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={st.description}
+                            onChange={(e) => setActivities((p) => ({ ...p, [a.code]: { ...p[a.code], description: e.target.value } }))}
+                            style={{ width: "100%", resize: "vertical", fontSize: 13 }}
+                          />
+                        </div>
+                      )}
+                      {st.enabled && a.has_repair_cost && (
+                        <div className="field" style={{ marginTop: 8 }}>
+                          <label style={{ fontSize: 11 }}>Biaya perbaikan (Rp)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1000"
+                            value={st.repair_cost}
+                            onChange={(e) => setActivities((p) => ({ ...p, [a.code]: { ...p[a.code], repair_cost: e.target.value } }))}
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
