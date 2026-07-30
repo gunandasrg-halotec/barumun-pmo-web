@@ -663,10 +663,11 @@ export default function PublicHeavyEquipmentLogPage() {
                     accept="image/*"
                     multiple
                     style={{ display: "none" }}
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const files = Array.from(e.target.files ?? []);
-                      setBbmPhotos((p) => [...p, ...files]);
                       e.target.value = "";
+                      const compressed = await Promise.all(files.map((f) => compressImage(f)));
+                      setBbmPhotos((p) => [...p, ...compressed]);
                     }}
                   />
                 </label>
