@@ -189,7 +189,7 @@ function NotificationBell() {
 }
 
 export default function Sidebar() {
-  const { user, logout, isAdminSistem, isDireksi, isFinance, isProjectManager } = useAuth();
+  const { user, logout, isAdminSistem, isDireksi, isFinance, isProjectManager, isAdminProyek } = useAuth();
   const { projectId } = useParams();
 
   const initials = user?.full_name
@@ -228,7 +228,7 @@ export default function Sidebar() {
         )}
 
         <div className="menu-group-title">Operasional</div>
-        {(isAdminSistem() || isDireksi() || isProjectManager() || isFinance()) && (
+        {(isAdminSistem() || isDireksi() || isProjectManager() || isFinance() || isAdminProyek()) && (
           <NavBtn to="/penggunaan-alat-berat" label="Penggunaan Alat Berat" sub="Analitik & data alat berat" />
         )}
         {(isAdminSistem() || isFinance()) && (
