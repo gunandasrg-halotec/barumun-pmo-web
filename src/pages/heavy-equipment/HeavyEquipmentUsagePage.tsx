@@ -276,38 +276,45 @@ export default function HeavyEquipmentUsagePage() {
                     <div style={{ fontSize: 12, color: "var(--danger)" }}>Gagal memuat</div>
                   ) : d ? (
                     <>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: d.entries.length > 0 ? 12 : 0 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: key === "solar" ? "1fr 1fr 1fr" : "1fr 1fr", gap: 8, marginBottom: d.entries.length > 0 ? 12 : 0 }}>
                         <div style={{ background: bg, borderRadius: 8, padding: "10px 12px" }}>
                           <div style={{ fontSize: 11, color: textColor, fontWeight: 600, marginBottom: 2 }}>Diterima</div>
-                          <div style={{ fontSize: 20, fontWeight: 800, color: textColor, fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.total_received, 0)} <span style={{ fontSize: 12, fontWeight: 600 }}>L</span></div>
+                          <div style={{ fontSize: 18, fontWeight: 800, color: textColor, fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.total_received, 0)} <span style={{ fontSize: 11, fontWeight: 600 }}>L</span></div>
                         </div>
+                        {key === "solar" && (
+                          <div style={{ background: "#fdecea", borderRadius: 8, padding: "10px 12px", border: "1px solid #f5aca640" }}>
+                            <div style={{ fontSize: 11, color: "#8a2c25", fontWeight: 600, marginBottom: 2 }}>Digunakan</div>
+                            <div style={{ fontSize: 18, fontWeight: 800, color: "#8a2c25", fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.total_used, 0)} <span style={{ fontSize: 11, fontWeight: 600 }}>L</span></div>
+                          </div>
+                        )}
                         <div style={{ background: accent + "15", borderRadius: 8, padding: "10px 12px", border: `1px solid ${accent}40` }}>
                           <div style={{ fontSize: 11, color: textColor, fontWeight: 600, marginBottom: 2 }}>Saldo</div>
-                          <div style={{ fontSize: 20, fontWeight: 800, color: textColor, fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.saldo, 0)} <span style={{ fontSize: 12, fontWeight: 600 }}>L</span></div>
+                          <div style={{ fontSize: 18, fontWeight: 800, color: d.saldo < 0 ? "#cb5f45" : textColor, fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.saldo, 0)} <span style={{ fontSize: 11, fontWeight: 600 }}>L</span></div>
                         </div>
                       </div>
                       {d.entries.length > 0 && (
-                        <div style={{ borderTop: `1px solid ${accent}20`, paddingTop: 10, display: "grid", gap: 6 }}>
+                        <div style={{ borderTop: `1px solid ${accent}20`, paddingTop: 10, display: "grid", gap: 5 }}>
                           {d.entries.map((entry) => {
-                            // Foto ditampilkan pada entri Solar jika hari itu ada Solar.
-                            // Pada Dex Lite: tampilkan foto hanya jika tidak ada Solar di hari yang sama.
+                            const isUsage = entry.entry_type === "usage";
                             const hasSolarSameDay = key === "dex_lite"
                               ? solarEntries.some((s) => s.receipt_date === entry.receipt_date && s.kebun === entry.kebun)
                               : false;
-                            const showPhotos = (key === "solar" || !hasSolarSameDay) && entry.photos.length > 0;
-                            const parts = [
-                              entry.qty_20l && `${entry.qty_20l}×20L`,
-                              entry.qty_30l && `${entry.qty_30l}×30L`,
-                              entry.qty_40l && `${entry.qty_40l}×40L`,
-                            ].filter(Boolean).join(" · ");
+                            const showPhotos = !isUsage && (key === "solar" || !hasSolarSameDay) && entry.photos.length > 0;
+                            const parts = isUsage
+                              ? "Pemakaian alat berat"
+                              : [
+                                  entry.qty_20l && `${entry.qty_20l}×20L`,
+                                  entry.qty_30l && `${entry.qty_30l}×30L`,
+                                  entry.qty_40l && `${entry.qty_40l}×40L`,
+                                ].filter(Boolean).join(" · ");
                             return (
                               <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-                                <span style={{ color: "var(--muted)", minWidth: 52, fontVariantNumeric: "tabular-nums" }}>
+                                <span style={{ color: "var(--muted)", minWidth: 30, fontVariantNumeric: "tabular-nums" }}>
                                   {entry.receipt_date.slice(5).replace("-", "/")}
                                 </span>
-                                <span style={{ flex: 1, color: "var(--text)" }}>{parts}</span>
-                                <span style={{ fontWeight: 700, color: textColor, fontVariantNumeric: "tabular-nums" }}>
-                                  {formatNumber(entry.total_liters, 0)} L
+                                <span style={{ flex: 1, color: isUsage ? "#8a2c25" : "var(--text)", fontStyle: isUsage ? "italic" : "normal" }}>{parts}</span>
+                                <span style={{ fontWeight: 700, color: isUsage ? "#cb5f45" : textColor, fontVariantNumeric: "tabular-nums" }}>
+                                  {isUsage ? "−" : "+"}{formatNumber(Math.abs(entry.total_liters), 0)} L
                                 </span>
                                 {showPhotos && (
                                   <button

@@ -422,8 +422,9 @@ export interface FuelStockReceiptEntry {
 
 export interface FuelStockLedgerEntry {
   id: string;
+  entry_type: "receipt" | "usage";
   receipt_date: string;
-  kebun: string;
+  kebun: string | null;
   qty_20l: number;
   qty_30l: number;
   qty_40l: number;
@@ -434,6 +435,7 @@ export interface FuelStockLedgerEntry {
 
 export interface FuelStockData {
   total_received: number;
+  total_used: number;
   saldo: number;
   entries: FuelStockLedgerEntry[];
 }
