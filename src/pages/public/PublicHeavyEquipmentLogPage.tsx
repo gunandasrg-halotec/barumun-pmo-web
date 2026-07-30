@@ -936,6 +936,7 @@ export default function PublicHeavyEquipmentLogPage() {
               </button>
             </div>
           </form>
+          </>}
         </div>
       </div>
     );
