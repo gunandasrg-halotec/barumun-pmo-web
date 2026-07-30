@@ -429,6 +429,7 @@ export interface FuelStockLedgerEntry {
   qty_40l: number;
   total_liters: number;
   saldo: number;
+  photos: { id: string; download_url: string }[];
 }
 
 export interface FuelStockData {

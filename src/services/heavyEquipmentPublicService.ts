@@ -45,12 +45,17 @@ export const heavyEquipmentPublicService = {
 
   submitFuelReceipts: async (
     p: string,
-    payload: { kebun: string; receipt_date: string; receipts: FuelStockReceiptEntry[] }
+    payload: { kebun: string; receipt_date: string; receipts: FuelStockReceiptEntry[]; photos?: File[] }
   ) => {
+    const fd = new FormData();
+    fd.append("kebun", payload.kebun);
+    fd.append("receipt_date", payload.receipt_date);
+    fd.append("receipts", JSON.stringify(payload.receipts));
+    (payload.photos ?? []).forEach((f) => fd.append("photos[]", f));
     const res = await publicApi.post<ApiResponse<unknown>>(
       "/public/heavy-equipment/fuel-receipts",
-      payload,
-      pin(p)
+      fd,
+      { headers: { "X-Access-Pin": p, "Content-Type": "multipart/form-data" } }
     );
     return res.data;
   },

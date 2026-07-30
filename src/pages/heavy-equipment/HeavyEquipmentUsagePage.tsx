@@ -65,6 +65,7 @@ export default function HeavyEquipmentUsagePage() {
     kebun: "",
   });
   const [detail, setDetail] = useState<HeavyEquipmentLog | null>(null);
+  const [photoViewer, setPhotoViewer] = useState<{ urls: string[]; index: number } | null>(null);
 
   const equipmentsQ = useQuery({
     queryKey: ["heavy-equipment-active-filter"],
@@ -240,13 +241,26 @@ export default function HeavyEquipmentUsagePage() {
 
       {activeTab === "Data Mentah" && (
         <div>
+          <div className="section-card glass" style={{ marginBottom: 18 }}>
+            <div className="section-title" style={{ marginBottom: 0 }}>
+              <div>
+                <h4 style={{ margin: 0 }}>Data mentah laporan harian</h4>
+                <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>
+                  Satu tabel per jenis pekerjaan, kolom mengikuti format formulir lapangan.
+                </p>
+              </div>
+              <button className="btn secondary" onClick={exportCsv} disabled={logs.length === 0}>Export CSV</button>
+            </div>
+          </div>
+
           {/* ── Kartu stock BBM ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 18 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12, marginBottom: 18 }}>
             {([
               { key: "solar", label: "Solar", icon: "☀️", accent: "#d4a537", bg: "#fef3dc", textColor: "#7a5800" },
               { key: "dex_lite", label: "Dex Lite", icon: "⛽", accent: "#0f6e56", bg: "#e1f5ee", textColor: "#0f6e56" },
             ] as const).map(({ key, label, icon, accent, bg, textColor }) => {
               const d: FuelStockData | undefined = fuelStock?.[key];
+              const solarEntries = fuelStock?.solar.entries ?? [];
               return (
                 <div key={key} className="section-card glass" style={{ border: `1.5px solid ${accent}30`, padding: "16px 18px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -261,34 +275,60 @@ export default function HeavyEquipmentUsagePage() {
                   ) : fuelStockQ.error ? (
                     <div style={{ fontSize: 12, color: "var(--danger)" }}>Gagal memuat</div>
                   ) : d ? (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      <div style={{ background: bg, borderRadius: 8, padding: "10px 12px" }}>
-                        <div style={{ fontSize: 11, color: textColor, fontWeight: 600, marginBottom: 2 }}>Diterima</div>
-                        <div style={{ fontSize: 20, fontWeight: 800, color: textColor, fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.total_received, 0)} <span style={{ fontSize: 12, fontWeight: 600 }}>L</span></div>
+                    <>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: d.entries.length > 0 ? 12 : 0 }}>
+                        <div style={{ background: bg, borderRadius: 8, padding: "10px 12px" }}>
+                          <div style={{ fontSize: 11, color: textColor, fontWeight: 600, marginBottom: 2 }}>Diterima</div>
+                          <div style={{ fontSize: 20, fontWeight: 800, color: textColor, fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.total_received, 0)} <span style={{ fontSize: 12, fontWeight: 600 }}>L</span></div>
+                        </div>
+                        <div style={{ background: accent + "15", borderRadius: 8, padding: "10px 12px", border: `1px solid ${accent}40` }}>
+                          <div style={{ fontSize: 11, color: textColor, fontWeight: 600, marginBottom: 2 }}>Saldo</div>
+                          <div style={{ fontSize: 20, fontWeight: 800, color: textColor, fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.saldo, 0)} <span style={{ fontSize: 12, fontWeight: 600 }}>L</span></div>
+                        </div>
                       </div>
-                      <div style={{ background: accent + "15", borderRadius: 8, padding: "10px 12px", border: `1px solid ${accent}40` }}>
-                        <div style={{ fontSize: 11, color: textColor, fontWeight: 600, marginBottom: 2 }}>Saldo</div>
-                        <div style={{ fontSize: 20, fontWeight: 800, color: textColor, fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.saldo, 0)} <span style={{ fontSize: 12, fontWeight: 600 }}>L</span></div>
-                      </div>
-                    </div>
+                      {d.entries.length > 0 && (
+                        <div style={{ borderTop: `1px solid ${accent}20`, paddingTop: 10, display: "grid", gap: 6 }}>
+                          {d.entries.map((entry) => {
+                            // Foto ditampilkan pada entri Solar jika hari itu ada Solar.
+                            // Pada Dex Lite: tampilkan foto hanya jika tidak ada Solar di hari yang sama.
+                            const hasSolarSameDay = key === "dex_lite"
+                              ? solarEntries.some((s) => s.receipt_date === entry.receipt_date && s.kebun === entry.kebun)
+                              : false;
+                            const showPhotos = (key === "solar" || !hasSolarSameDay) && entry.photos.length > 0;
+                            const parts = [
+                              entry.qty_20l && `${entry.qty_20l}×20L`,
+                              entry.qty_30l && `${entry.qty_30l}×30L`,
+                              entry.qty_40l && `${entry.qty_40l}×40L`,
+                            ].filter(Boolean).join(" · ");
+                            return (
+                              <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                                <span style={{ color: "var(--muted)", minWidth: 52, fontVariantNumeric: "tabular-nums" }}>
+                                  {entry.receipt_date.slice(5).replace("-", "/")}
+                                </span>
+                                <span style={{ flex: 1, color: "var(--text)" }}>{parts}</span>
+                                <span style={{ fontWeight: 700, color: textColor, fontVariantNumeric: "tabular-nums" }}>
+                                  {formatNumber(entry.total_liters, 0)} L
+                                </span>
+                                {showPhotos && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setPhotoViewer({ urls: entry.photos.map((p) => p.download_url), index: 0 })}
+                                    title={`${entry.photos.length} foto`}
+                                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: "0 2px", opacity: 0.8 }}
+                                  >📷</button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div style={{ fontSize: 12, color: "var(--muted)" }}>Belum ada data</div>
                   )}
                 </div>
               );
             })}
-          </div>
-
-          <div className="section-card glass" style={{ marginBottom: 18 }}>
-            <div className="section-title" style={{ marginBottom: 0 }}>
-              <div>
-                <h4 style={{ margin: 0 }}>Data mentah laporan harian</h4>
-                <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>
-                  Satu tabel per jenis pekerjaan, kolom mengikuti format formulir lapangan.
-                </p>
-              </div>
-              <button className="btn secondary" onClick={exportCsv} disabled={logs.length === 0}>Export CSV</button>
-            </div>
           </div>
 
           {logsQ.isLoading ? (
@@ -306,6 +346,13 @@ export default function HeavyEquipmentUsagePage() {
       )}
 
       {detail && <LogDetailModal log={detail} onClose={() => setDetail(null)} />}
+      {photoViewer && (
+        <FuelPhotoViewer
+          urls={photoViewer.urls}
+          initialIndex={photoViewer.index}
+          onClose={() => setPhotoViewer(null)}
+        />
+      )}
     </div>
   );
 }
@@ -934,5 +981,57 @@ function PhotoThumb({ url, name }: { url: string; name: string }) {
     <a href={src} target="_blank" rel="noreferrer">
       <img src={src} alt={name} style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)" }} />
     </a>
+  );
+}
+
+// ─── Photo viewer modal untuk foto BBM ───────────────────────────────────────
+
+function FuelPhotoViewer({ urls, initialIndex, onClose }: { urls: string[]; initialIndex: number; onClose: () => void }) {
+  const [idx, setIdx] = useState(initialIndex);
+  const token = localStorage.getItem("token") ?? "";
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowRight") setIdx((i) => (i + 1) % urls.length);
+      if (e.key === "ArrowLeft") setIdx((i) => (i - 1 + urls.length) % urls.length);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [urls.length, onClose]);
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }}
+    >
+      <div onClick={(e) => e.stopPropagation()} style={{ position: "relative", maxWidth: "90vw", maxHeight: "90vh", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+        <img
+          src={`${urls[idx]}?token=${token}`}
+          alt={`Foto ${idx + 1}`}
+          style={{ maxWidth: "90vw", maxHeight: "80vh", objectFit: "contain", borderRadius: 10 }}
+          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+        />
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          {urls.length > 1 && (
+            <button onClick={() => setIdx((i) => (i - 1 + urls.length) % urls.length)}
+              style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "none", color: "white", fontSize: 18, cursor: "pointer" }}>‹</button>
+          )}
+          <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>{idx + 1} / {urls.length}</span>
+          {urls.length > 1 && (
+            <button onClick={() => setIdx((i) => (i + 1) % urls.length)}
+              style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "none", color: "white", fontSize: 18, cursor: "pointer" }}>›</button>
+          )}
+        </div>
+        <button onClick={onClose}
+          style={{ position: "absolute", top: -14, right: -14, width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.2)", border: "none", color: "white", fontSize: 16, cursor: "pointer", fontWeight: 700 }}>×</button>
+        <a
+          href={urls[idx]}
+          target="_blank"
+          rel="noreferrer"
+          style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, textDecoration: "underline" }}
+        >Buka di tab baru</a>
+      </div>
+    </div>
   );
 }

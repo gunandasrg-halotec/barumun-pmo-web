@@ -189,6 +189,7 @@ export default function PublicHeavyEquipmentLogPage() {
   const [bbmDate, setBbmDate] = useState(todayISO());
   const [bbmForm, setBbmForm] = useState(defaultBbmForm());
   const [bbmEntries, setBbmEntries] = useState<FuelStockReceiptEntry[]>([]);
+  const [bbmPhotos, setBbmPhotos] = useState<File[]>([]);
   const [bbmSubmitting, setBbmSubmitting] = useState(false);
   const [bbmError, setBbmError] = useState("");
   const [bbmSuccess, setBbmSuccess] = useState(false);
@@ -217,9 +218,11 @@ export default function PublicHeavyEquipmentLogPage() {
         kebun,
         receipt_date: bbmDate,
         receipts: bbmEntries,
+        photos: bbmPhotos,
       });
       setBbmEntries([]);
       setBbmForm(defaultBbmForm());
+      setBbmPhotos([]);
       setBbmSuccess(true);
       setTimeout(() => setBbmSuccess(false), 3000);
     } catch (e) {
@@ -646,6 +649,46 @@ export default function PublicHeavyEquipmentLogPage() {
                   </div>
                 </div>
               )}
+
+              {/* Upload foto */}
+              <div className="field">
+                <label>Foto (opsional)</label>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, border: "1.5px dashed var(--line)", borderRadius: 12, padding: "10px 14px", cursor: "pointer", background: "white" }}>
+                  <span style={{ fontSize: 18 }}>📷</span>
+                  <span style={{ fontSize: 13, color: "var(--muted)" }}>
+                    {bbmPhotos.length === 0 ? "Pilih foto nota/surat jalan" : `${bbmPhotos.length} foto dipilih`}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files ?? []);
+                      setBbmPhotos((p) => [...p, ...files]);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                {bbmPhotos.length > 0 && (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                    {bbmPhotos.map((f, i) => (
+                      <div key={i} style={{ position: "relative", width: 60, height: 60 }}>
+                        <img
+                          src={URL.createObjectURL(f)}
+                          alt={f.name}
+                          style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)" }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setBbmPhotos((p) => p.filter((_, j) => j !== i))}
+                          style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: "50%", background: "#cb5f45", border: "none", color: "white", fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}
+                        >×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 <button
