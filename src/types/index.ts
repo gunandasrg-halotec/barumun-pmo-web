@@ -419,6 +419,7 @@ export interface FuelStockReceiptEntry {
   qty_30l: number;
   qty_35l: number;
   qty_40l: number;
+  extra_liters: number;
 }
 
 export interface FuelStockLedgerEntry {
@@ -430,6 +431,7 @@ export interface FuelStockLedgerEntry {
   qty_30l: number;
   qty_35l: number;
   qty_40l: number;
+  extra_liters: number;
   total_liters: number;
   saldo: number;
   notes: string | null;

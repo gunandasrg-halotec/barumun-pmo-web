@@ -307,6 +307,7 @@ export default function HeavyEquipmentUsagePage() {
                                   entry.qty_30l && `${entry.qty_30l}×30L`,
                                   entry.qty_35l && `${entry.qty_35l}×35L`,
                                   entry.qty_40l && `${entry.qty_40l}×40L`,
+                                  entry.extra_liters && `sisa ${entry.extra_liters}L`,
                                 ].filter(Boolean).join(" · ");
                             return (
                               <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>

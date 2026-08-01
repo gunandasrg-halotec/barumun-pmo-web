@@ -191,7 +191,7 @@ export default function PublicHeavyEquipmentLogPage() {
   const [activePublicTab, setActivePublicTab] = useState<"laporan" | "bbm">("laporan");
 
   // ── State tab Penerimaan BBM ──
-  const defaultBbmForm = () => ({ fuelType: "solar" as FuelType, qty20: 0, qty30: 0, qty35: 0, qty40: 0 });
+  const defaultBbmForm = () => ({ fuelType: "solar" as FuelType, qty20: 0, qty30: 0, qty35: 0, qty40: 0, extraLiters: "" });
   const [bbmDate, setBbmDate] = useState(todayISO());
   const [bbmForm, setBbmForm] = useState(defaultBbmForm());
   const [bbmEntries, setBbmEntries] = useState<FuelStockReceiptEntry[]>([]);
@@ -201,14 +201,15 @@ export default function PublicHeavyEquipmentLogPage() {
   const [bbmError, setBbmError] = useState("");
   const [bbmSuccess, setBbmSuccess] = useState(false);
 
-  const bbmTotal = bbmEntries.reduce((s, e) => s + e.qty_20l * 20 + e.qty_30l * 30 + e.qty_35l * 35 + e.qty_40l * 40, 0);
+  const bbmTotal = bbmEntries.reduce((s, e) => s + e.qty_20l * 20 + e.qty_30l * 30 + e.qty_35l * 35 + e.qty_40l * 40 + e.extra_liters, 0);
 
   function bbmAddEntry() {
-    const total = bbmForm.qty20 * 20 + bbmForm.qty30 * 30 + bbmForm.qty35 * 35 + bbmForm.qty40 * 40;
+    const extra = parseFloat(bbmForm.extraLiters) || 0;
+    const total = bbmForm.qty20 * 20 + bbmForm.qty30 * 30 + bbmForm.qty35 * 35 + bbmForm.qty40 * 40 + extra;
     if (total === 0) return;
     setBbmEntries((prev) => [
       ...prev,
-      { fuel_type: bbmForm.fuelType, qty_20l: bbmForm.qty20, qty_30l: bbmForm.qty30, qty_35l: bbmForm.qty35, qty_40l: bbmForm.qty40 },
+      { fuel_type: bbmForm.fuelType, qty_20l: bbmForm.qty20, qty_30l: bbmForm.qty30, qty_35l: bbmForm.qty35, qty_40l: bbmForm.qty40, extra_liters: extra },
     ]);
     setBbmForm(defaultBbmForm());
   }
@@ -626,6 +627,19 @@ export default function PublicHeavyEquipmentLogPage() {
                     </div>
                   ))}
                 </div>
+                <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
+                  <label style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap", margin: 0 }}>+ Sisa (liter)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    value={bbmForm.extraLiters}
+                    onChange={(e) => setBbmForm((p) => ({ ...p, extraLiters: e.target.value }))}
+                    style={{ flex: 1, borderRadius: 8, border: "1px solid var(--line)", padding: "6px 10px", fontSize: 14, textAlign: "right" }}
+                  />
+                  <span style={{ fontSize: 12, color: "var(--muted)" }}>L</span>
+                </div>
               </div>
 
               {bbmEntries.length > 0 && (
@@ -633,8 +647,8 @@ export default function PublicHeavyEquipmentLogPage() {
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 8 }}>Data yang akan disimpan</div>
                   <div style={{ display: "grid", gap: 7 }}>
                     {bbmEntries.map((e, i) => {
-                      const vol = e.qty_20l * 20 + e.qty_30l * 30 + e.qty_35l * 35 + e.qty_40l * 40;
-                      const parts = [e.qty_20l && `${e.qty_20l}×20L`, e.qty_30l && `${e.qty_30l}×30L`, e.qty_35l && `${e.qty_35l}×35L`, e.qty_40l && `${e.qty_40l}×40L`].filter(Boolean).join(" · ");
+                      const vol = e.qty_20l * 20 + e.qty_30l * 30 + e.qty_35l * 35 + e.qty_40l * 40 + e.extra_liters;
+                      const parts = [e.qty_20l && `${e.qty_20l}×20L`, e.qty_30l && `${e.qty_30l}×30L`, e.qty_35l && `${e.qty_35l}×35L`, e.qty_40l && `${e.qty_40l}×40L`, e.extra_liters && `sisa ${e.extra_liters}L`].filter(Boolean).join(" · ");
                       const isSolar = e.fuel_type === "solar";
                       return (
                         <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: "white", border: "1px solid var(--line)", borderRadius: 12, padding: "10px 12px" }}>
@@ -716,7 +730,7 @@ export default function PublicHeavyEquipmentLogPage() {
                 <button
                   type="button"
                   onClick={bbmAddEntry}
-                  disabled={bbmForm.qty20 + bbmForm.qty30 + bbmForm.qty35 + bbmForm.qty40 === 0}
+                  disabled={bbmForm.qty20 + bbmForm.qty30 + bbmForm.qty35 + bbmForm.qty40 === 0 && (parseFloat(bbmForm.extraLiters) || 0) === 0}
                   style={{ padding: "11px", borderRadius: 12, border: "1.5px solid var(--green-700)", background: "white", color: "var(--green-700)", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
                 >
                   + Tambah data
