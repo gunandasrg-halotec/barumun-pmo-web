@@ -417,6 +417,7 @@ export interface FuelStockReceiptEntry {
   fuel_type: FuelType;
   qty_20l: number;
   qty_30l: number;
+  qty_35l: number;
   qty_40l: number;
 }
 
@@ -427,9 +428,11 @@ export interface FuelStockLedgerEntry {
   kebun: string | null;
   qty_20l: number;
   qty_30l: number;
+  qty_35l: number;
   qty_40l: number;
   total_liters: number;
   saldo: number;
+  notes: string | null;
   photos: { id: string; download_url: string }[];
 }
 

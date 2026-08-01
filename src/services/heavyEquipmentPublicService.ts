@@ -45,12 +45,13 @@ export const heavyEquipmentPublicService = {
 
   submitFuelReceipts: async (
     p: string,
-    payload: { kebun: string; receipt_date: string; receipts: FuelStockReceiptEntry[]; photos?: File[] }
+    payload: { kebun: string; receipt_date: string; receipts: FuelStockReceiptEntry[]; notes?: string; photos?: File[] }
   ) => {
     const fd = new FormData();
     fd.append("kebun", payload.kebun);
     fd.append("receipt_date", payload.receipt_date);
     fd.append("receipts", JSON.stringify(payload.receipts));
+    if (payload.notes) fd.append("notes", payload.notes);
     (payload.photos ?? []).forEach((f) => fd.append("photos[]", f));
     const res = await publicApi.post<ApiResponse<unknown>>(
       "/public/heavy-equipment/fuel-receipts",

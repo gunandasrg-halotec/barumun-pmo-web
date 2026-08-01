@@ -305,6 +305,7 @@ export default function HeavyEquipmentUsagePage() {
                               : [
                                   entry.qty_20l && `${entry.qty_20l}×20L`,
                                   entry.qty_30l && `${entry.qty_30l}×30L`,
+                                  entry.qty_35l && `${entry.qty_35l}×35L`,
                                   entry.qty_40l && `${entry.qty_40l}×40L`,
                                 ].filter(Boolean).join(" · ");
                             return (

@@ -191,23 +191,24 @@ export default function PublicHeavyEquipmentLogPage() {
   const [activePublicTab, setActivePublicTab] = useState<"laporan" | "bbm">("laporan");
 
   // ── State tab Penerimaan BBM ──
-  const defaultBbmForm = () => ({ fuelType: "solar" as FuelType, qty20: 0, qty30: 0, qty40: 0 });
+  const defaultBbmForm = () => ({ fuelType: "solar" as FuelType, qty20: 0, qty30: 0, qty35: 0, qty40: 0 });
   const [bbmDate, setBbmDate] = useState(todayISO());
   const [bbmForm, setBbmForm] = useState(defaultBbmForm());
   const [bbmEntries, setBbmEntries] = useState<FuelStockReceiptEntry[]>([]);
   const [bbmPhotos, setBbmPhotos] = useState<File[]>([]);
+  const [bbmNotes, setBbmNotes] = useState("");
   const [bbmSubmitting, setBbmSubmitting] = useState(false);
   const [bbmError, setBbmError] = useState("");
   const [bbmSuccess, setBbmSuccess] = useState(false);
 
-  const bbmTotal = bbmEntries.reduce((s, e) => s + e.qty_20l * 20 + e.qty_30l * 30 + e.qty_40l * 40, 0);
+  const bbmTotal = bbmEntries.reduce((s, e) => s + e.qty_20l * 20 + e.qty_30l * 30 + e.qty_35l * 35 + e.qty_40l * 40, 0);
 
   function bbmAddEntry() {
-    const total = bbmForm.qty20 * 20 + bbmForm.qty30 * 30 + bbmForm.qty40 * 40;
+    const total = bbmForm.qty20 * 20 + bbmForm.qty30 * 30 + bbmForm.qty35 * 35 + bbmForm.qty40 * 40;
     if (total === 0) return;
     setBbmEntries((prev) => [
       ...prev,
-      { fuel_type: bbmForm.fuelType, qty_20l: bbmForm.qty20, qty_30l: bbmForm.qty30, qty_40l: bbmForm.qty40 },
+      { fuel_type: bbmForm.fuelType, qty_20l: bbmForm.qty20, qty_30l: bbmForm.qty30, qty_35l: bbmForm.qty35, qty_40l: bbmForm.qty40 },
     ]);
     setBbmForm(defaultBbmForm());
   }
@@ -224,10 +225,12 @@ export default function PublicHeavyEquipmentLogPage() {
         kebun,
         receipt_date: bbmDate,
         receipts: bbmEntries,
+        notes: bbmNotes || undefined,
         photos: bbmPhotos,
       });
       setBbmEntries([]);
       setBbmForm(defaultBbmForm());
+      setBbmNotes("");
       setBbmPhotos([]);
       setBbmSuccess(true);
       setTimeout(() => setBbmSuccess(false), 3000);
@@ -608,8 +611,8 @@ export default function PublicHeavyEquipmentLogPage() {
 
               <div className="field">
                 <label>Jumlah jirigen</label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                  {([["qty20", 20], ["qty30", 30], ["qty40", 40]] as const).map(([key, liter]) => (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                  {([["qty20", 20], ["qty30", 30], ["qty35", 35], ["qty40", 40]] as const).map(([key, liter]) => (
                     <div key={key} style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "10px 8px", textAlign: "center", background: "white" }}>
                       <div style={{ fontSize: 16, fontWeight: 700, color: "var(--green-700)" }}>{liter}</div>
                       <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 8 }}>Liter / jirigen</div>
@@ -630,8 +633,8 @@ export default function PublicHeavyEquipmentLogPage() {
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 8 }}>Data yang akan disimpan</div>
                   <div style={{ display: "grid", gap: 7 }}>
                     {bbmEntries.map((e, i) => {
-                      const vol = e.qty_20l * 20 + e.qty_30l * 30 + e.qty_40l * 40;
-                      const parts = [e.qty_20l && `${e.qty_20l}×20L`, e.qty_30l && `${e.qty_30l}×30L`, e.qty_40l && `${e.qty_40l}×40L`].filter(Boolean).join(" · ");
+                      const vol = e.qty_20l * 20 + e.qty_30l * 30 + e.qty_35l * 35 + e.qty_40l * 40;
+                      const parts = [e.qty_20l && `${e.qty_20l}×20L`, e.qty_30l && `${e.qty_30l}×30L`, e.qty_35l && `${e.qty_35l}×35L`, e.qty_40l && `${e.qty_40l}×40L`].filter(Boolean).join(" · ");
                       const isSolar = e.fuel_type === "solar";
                       return (
                         <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: "white", border: "1px solid var(--line)", borderRadius: 12, padding: "10px 12px" }}>
@@ -655,6 +658,18 @@ export default function PublicHeavyEquipmentLogPage() {
                   </div>
                 </div>
               )}
+
+              {/* Catatan */}
+              <div className="field">
+                <label>Catatan (opsional)</label>
+                <textarea
+                  rows={2}
+                  placeholder="Misal: dari supplier X, no. DO 12345..."
+                  value={bbmNotes}
+                  onChange={(e) => setBbmNotes(e.target.value)}
+                  style={{ width: "100%", borderRadius: 10, border: "1px solid var(--line)", padding: "8px 10px", fontSize: 13, resize: "vertical", fontFamily: "inherit" }}
+                />
+              </div>
 
               {/* Upload foto */}
               <div className="field">
@@ -701,7 +716,7 @@ export default function PublicHeavyEquipmentLogPage() {
                 <button
                   type="button"
                   onClick={bbmAddEntry}
-                  disabled={bbmForm.qty20 + bbmForm.qty30 + bbmForm.qty40 === 0}
+                  disabled={bbmForm.qty20 + bbmForm.qty30 + bbmForm.qty35 + bbmForm.qty40 === 0}
                   style={{ padding: "11px", borderRadius: 12, border: "1.5px solid var(--green-700)", background: "white", color: "var(--green-700)", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
                 >
                   + Tambah data
