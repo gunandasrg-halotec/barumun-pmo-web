@@ -52,8 +52,7 @@ function flattenNodes(
   unit: string;
   volume: number | null;
   rate: number | null;
-  latest_remaining_volume: number | null;
-  latest_remaining_cost: number | null;
+  planned_cost: number | null;
 }[] {
   return nodes.flatMap((n) => [
     ...(n.node_type === "ITEM"
@@ -64,14 +63,7 @@ function flattenNodes(
             unit: n.unit ?? "",
             volume: n.volume ?? null,
             rate: n.rate ?? null,
-            latest_remaining_volume:
-              (n as any).latest_remaining_volume != null
-                ? Number((n as any).latest_remaining_volume)
-                : null,
-            latest_remaining_cost:
-              (n as any).latest_remaining_cost != null
-                ? Number((n as any).latest_remaining_cost)
-                : null,
+            planned_cost: n.planned_cost ?? null,
           },
         ]
       : []),
@@ -167,14 +159,26 @@ export default function ProgressListPage() {
         return ia - ib;
       })
       .map((g) => {
-        const latestRem = g.nodeInfo?.latest_remaining_volume;
         const volPlan = Number(g.wbdNode?.volume ?? g.nodeInfo?.volume ?? 0);
         const totalVolReal = sumApproved(g.entries, "progress_volume");
-        const volSisa = latestRem != null ? Number(latestRem) : Math.max(0, volPlan - totalVolReal);
-        const isDone = volSisa === 0;
+        const volSisa = Math.max(0, volPlan - totalVolReal);
+        const isDone = volPlan > 0 && volSisa === 0;
         return { ...g, isDone };
       });
   }, [entries, itemNodes]);
+
+  // Volume/biaya yang sudah direalisasikan (disetujui) sebelumnya, per node —
+  // dipakai sebagai dasar prefill & recompute "Sisa" di modal Input Progress.
+  const priorRealizedByNode = useMemo(() => {
+    const map = new Map<string, { volume: number; cost: number }>();
+    for (const g of allGroups) {
+      map.set(g.nodeId, {
+        volume: sumApproved(g.entries, "progress_volume"),
+        cost: sumApproved(g.entries, "actual_cost"),
+      });
+    }
+    return map;
+  }, [allGroups]);
 
   const filteredGroups = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -463,9 +467,7 @@ export default function ProgressListPage() {
                     const totalVolReal = sumApproved(group.entries, "progress_volume");
                     const totalCostReal = sumApproved(group.entries, "actual_cost");
 
-                    // Use latest_remaining_volume from node if available
-                    const latestRem = ni?.latest_remaining_volume;
-                    const volSisa = latestRem != null ? Number(latestRem) : Math.max(0, volPlan - totalVolReal);
+                    const volSisa = Math.max(0, volPlan - totalVolReal);
                     const isGroupDone = group.isDone;
                     const pct = volPlan > 0 ? Math.min(100, Math.round((totalVolReal / volPlan) * 100)) : 0;
                     const costSisa = costPlan - totalCostReal;
@@ -828,6 +830,7 @@ export default function ProgressListPage() {
               <ProgressCreateForm
                 projectId={projectId!}
                 itemNodes={itemNodes}
+                priorRealizedByNode={priorRealizedByNode}
                 onSuccess={() => {
                   setShowCreate(false);
                   queryClient.invalidateQueries({
@@ -911,6 +914,7 @@ export default function ProgressListPage() {
 function ProgressCreateForm({
   projectId,
   itemNodes,
+  priorRealizedByNode,
   onSuccess,
   onCancel,
 }: {
@@ -921,9 +925,9 @@ function ProgressCreateForm({
     unit: string;
     volume: number | null;
     rate: number | null;
-    latest_remaining_volume: number | null;
-    latest_remaining_cost: number | null;
+    planned_cost: number | null;
   }[];
+  priorRealizedByNode: Map<string, { volume: number; cost: number }>;
   onSuccess: () => void;
   onCancel: () => void;
 }) {
@@ -943,7 +947,12 @@ function ProgressCreateForm({
     unit: string;
     volume: number | null;
     rate: number | null;
+    planned_cost: number | null;
   } | null>(null);
+  // Volume & biaya yang sudah direalisasikan (disetujui) untuk item yang dipilih —
+  // dasar hitung "Sisa" agar tidak mengabaikan riwayat entri sebelumnya.
+  const [priorRealizedVolume, setPriorRealizedVolume] = useState(0);
+  const [priorRealizedCost, setPriorRealizedCost] = useState(0);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -952,13 +961,16 @@ function ProgressCreateForm({
   const realVolume = parseFloat(form.progress_volume) || 0;
   const remainVol = parseFloat(remainingVolume) || 0;
   const autoRemaining =
-    planVolume > 0 ? Math.max(0, planVolume - realVolume) : 0;
+    planVolume > 0 ? Math.max(0, planVolume - priorRealizedVolume - realVolume) : 0;
   const isOverBudget = planVolume > 0 && realVolume + remainVol > planVolume;
   const isMarkedDone =
     remainingVolume === "0" || remainingVolume.trim() === "0";
 
   function handleNodeSelect(id: string) {
     const node = itemNodes.find((n) => n.id === id);
+    const prior = priorRealizedByNode.get(id) ?? { volume: 0, cost: 0 };
+    setPriorRealizedVolume(prior.volume);
+    setPriorRealizedCost(prior.cost);
     setForm((p) => ({ ...p, wbd_node_id: id }));
     setPreview(
       node
@@ -967,39 +979,47 @@ function ProgressCreateForm({
             unit: node.unit,
             volume: node.volume,
             rate: node.rate,
+            planned_cost: node.planned_cost,
           }
         : null,
     );
     setRemainingOverridden(false);
     setRemainingCostOverridden(false);
-    // Use latest_remaining_volume from last progress entry if exists, else fall back to planned volume
+    // Sisa = volume rencana − SEMUA volume yang sudah disetujui sebelumnya (kumulatif),
+    // bukan hanya dari entri terakhir.
     const newRemVol =
-      node != null
-        ? node.latest_remaining_volume != null
-          ? node.latest_remaining_volume
-          : (node.volume ?? 0)
-        : null;
+      node != null ? Math.max(0, (node.volume ?? 0) - prior.volume) : null;
     setRemainingVolume(newRemVol != null ? String(newRemVol) : "");
     const newRemCost =
       node != null
-        ? node.latest_remaining_cost != null
-          ? node.latest_remaining_cost
+        ? node.planned_cost != null
+          ? Math.max(0, node.planned_cost - prior.cost)
           : newRemVol != null && node.rate != null
             ? Math.round(newRemVol * node.rate)
             : 0
         : null;
-    setRemainingCost(newRemCost != null ? String(newRemCost) : "");
+    setRemainingCost(newRemCost != null ? String(Math.round(newRemCost)) : "");
   }
 
   function handleProgressVolumeChange(val: string) {
     setForm((p) => ({ ...p, progress_volume: val }));
     const parsed = parseFloat(val) || 0;
     if (!remainingOverridden && planVolume > 0) {
-      const newRemVol = Math.max(0, planVolume - parsed);
+      const newRemVol = Math.max(0, planVolume - priorRealizedVolume - parsed);
       setRemainingVolume(String(newRemVol));
       if (!remainingCostOverridden && preview?.rate != null) {
         setRemainingCost(String(Math.round(newRemVol * preview.rate)));
       }
+    }
+  }
+
+  function handleActualCostChange(val: string) {
+    setForm((p) => ({ ...p, actual_cost: val }));
+    if (!remainingCostOverridden) {
+      const plannedCostForItem = preview?.planned_cost ?? 0;
+      const parsed = parseFloat(val) || 0;
+      const newRemCost = Math.max(0, plannedCostForItem - priorRealizedCost - parsed);
+      setRemainingCost(String(Math.round(newRemCost)));
     }
   }
 
@@ -1208,9 +1228,7 @@ function ProgressCreateForm({
         <input
           type="number"
           value={form.actual_cost}
-          onChange={(e) =>
-            setForm((p) => ({ ...p, actual_cost: e.target.value }))
-          }
+          onChange={(e) => handleActualCostChange(e.target.value)}
           step="1"
           min="0"
           placeholder="0"
