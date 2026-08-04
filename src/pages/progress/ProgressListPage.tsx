@@ -942,6 +942,7 @@ function ProgressCreateForm({
   const [remainingCost, setRemainingCost] = useState("");
   const [remainingOverridden, setRemainingOverridden] = useState(false);
   const [remainingCostOverridden, setRemainingCostOverridden] = useState(false);
+  const [actualCostOverridden, setActualCostOverridden] = useState(false);
   const [preview, setPreview] = useState<{
     label: string;
     unit: string;
@@ -971,7 +972,7 @@ function ProgressCreateForm({
     const prior = priorRealizedByNode.get(id) ?? { volume: 0, cost: 0 };
     setPriorRealizedVolume(prior.volume);
     setPriorRealizedCost(prior.cost);
-    setForm((p) => ({ ...p, wbd_node_id: id }));
+    setForm((p) => ({ ...p, wbd_node_id: id, actual_cost: "" }));
     setPreview(
       node
         ? {
@@ -985,6 +986,7 @@ function ProgressCreateForm({
     );
     setRemainingOverridden(false);
     setRemainingCostOverridden(false);
+    setActualCostOverridden(false);
     // Sisa = volume rencana − SEMUA volume yang sudah disetujui sebelumnya (kumulatif),
     // bukan hanya dari entri terakhir.
     const newRemVol =
@@ -1001,26 +1003,35 @@ function ProgressCreateForm({
     setRemainingCost(newRemCost != null ? String(Math.round(newRemCost)) : "");
   }
 
+  // Sisa Biaya Estimasi = Biaya Rencana − biaya yang sudah direalisasikan sebelumnya
+  // − Biaya Realisasi entri ini (nilai yang benar-benar ada di field Biaya Realisasi,
+  // baik itu hasil auto-isi dari volume × harga satuan atau ketikan manual user).
+  function recomputeRemainingCost(actualCostVal: number) {
+    if (remainingCostOverridden) return;
+    const plannedCostForItem = preview?.planned_cost ?? 0;
+    const newRemCost = Math.max(0, plannedCostForItem - priorRealizedCost - actualCostVal);
+    setRemainingCost(String(Math.round(newRemCost)));
+  }
+
   function handleProgressVolumeChange(val: string) {
     setForm((p) => ({ ...p, progress_volume: val }));
     const parsed = parseFloat(val) || 0;
     if (!remainingOverridden && planVolume > 0) {
       const newRemVol = Math.max(0, planVolume - priorRealizedVolume - parsed);
       setRemainingVolume(String(newRemVol));
-      if (!remainingCostOverridden && preview?.rate != null) {
-        setRemainingCost(String(Math.round(newRemVol * preview.rate)));
-      }
+    }
+    // Biaya Realisasi = Volume Realisasi × Harga Satuan, sampai user mengetik manual.
+    if (!actualCostOverridden && preview?.rate != null) {
+      const autoCost = Math.round(parsed * preview.rate);
+      setForm((p) => ({ ...p, actual_cost: String(autoCost) }));
+      recomputeRemainingCost(autoCost);
     }
   }
 
   function handleActualCostChange(val: string) {
     setForm((p) => ({ ...p, actual_cost: val }));
-    if (!remainingCostOverridden) {
-      const plannedCostForItem = preview?.planned_cost ?? 0;
-      const parsed = parseFloat(val) || 0;
-      const newRemCost = Math.max(0, plannedCostForItem - priorRealizedCost - parsed);
-      setRemainingCost(String(Math.round(newRemCost)));
-    }
+    setActualCostOverridden(true);
+    recomputeRemainingCost(parseFloat(val) || 0);
   }
 
   function handleRemainingChange(val: string) {
@@ -1220,9 +1231,10 @@ function ProgressCreateForm({
 
       <div className="field">
         <label>
-          Biaya Realisasi (Rp){" "}
-          <span style={{ color: "var(--muted)", fontWeight: 400 }}>
-            — opsional
+          Biaya Realisasi (Rp)
+          <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 11 }}>
+            {" "}
+            — auto dari Volume Realisasi × Harga Satuan, bisa diubah
           </span>
         </label>
         <input
@@ -1243,7 +1255,7 @@ function ProgressCreateForm({
               style={{ color: "var(--muted)", fontWeight: 400, fontSize: 11 }}
             >
               {" "}
-              — auto dari Sisa Volume × Harga Satuan, bisa diubah
+              — auto dari Biaya Rencana − Biaya Realisasi, bisa diubah
             </span>
           </label>
           <input
