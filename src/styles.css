@@ -1309,12 +1309,13 @@ select {
   z-index: 2; /* Keeps it above non-sticky columns */
 }
 
-/* 4. Sticky Logic for Column 2 */
+/* 4. Sticky Logic for Column 2 — dipakai sendirian (tanpa Column 1) di
+   ProgressListPage, jadi harus pin ke left:0, bukan 80px (yang akan
+   menutupi kolom sesudahnya karena tidak ada Column 1 di tabel itu). */
 .progress-table-col-2 {
   position: sticky;
-  left: 80px; /* Must match the EXACT total width of Column 1 */
+  left: 0;
   z-index: 2;
-  /* overflow-x: scroll; */
 }
 
 .progress-table-col-1-width {
