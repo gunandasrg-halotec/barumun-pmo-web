@@ -964,6 +964,13 @@ function ProgressCreateForm({
   const autoRemaining =
     planVolume > 0 ? Math.max(0, planVolume - priorRealizedVolume - realVolume) : 0;
   const isOverBudget = planVolume > 0 && realVolume + remainVol > planVolume;
+
+  const plannedCostForItem = preview?.planned_cost ?? 0;
+  const realCost = parseFloat(form.actual_cost) || 0;
+  const remainCost = parseFloat(remainingCost) || 0;
+  const isCostOverBudget =
+    plannedCostForItem > 0 && realCost + remainCost > plannedCostForItem;
+
   const isMarkedDone =
     remainingVolume === "0" || remainingVolume.trim() === "0";
 
@@ -1065,9 +1072,9 @@ function ProgressCreateForm({
     e.preventDefault();
     setError("");
 
-    if (isOverBudget && !form.note.trim()) {
+    if ((isOverBudget || isCostOverBudget) && !form.note.trim()) {
       setError(
-        "Catatan lapangan wajib diisi karena estimasi total melebihi volume rencana.",
+        "Catatan lapangan wajib diisi karena estimasi total melebihi rencana (volume dan/atau biaya).",
       );
       return;
     }
@@ -1220,15 +1227,6 @@ function ProgressCreateForm({
         </div>
       )}
 
-      {isOverBudget && (
-        <div className="danger-box" style={{ fontSize: 13, marginBottom: 12 }}>
-          ⚠ Total estimasi ({formatNumber(realVolume + remainVol)}{" "}
-          {preview?.unit}) melebihi volume rencana ({formatNumber(planVolume)}{" "}
-          {preview?.unit}). Catatan lapangan <strong>wajib diisi</strong> dan
-          Direktur Utama akan mendapat notifikasi.
-        </div>
-      )}
-
       <div className="field">
         <label>
           Biaya Realisasi (Rp)
@@ -1267,10 +1265,31 @@ function ProgressCreateForm({
         </div>
       )}
 
+      {(isOverBudget || isCostOverBudget) && (
+        <div className="danger-box" style={{ fontSize: 13, marginBottom: 12 }}>
+          {isOverBudget && (
+            <div>
+              ⚠ Total estimasi volume ({formatNumber(realVolume + remainVol)}{" "}
+              {preview?.unit}) melebihi volume rencana ({formatNumber(planVolume)}{" "}
+              {preview?.unit}).
+            </div>
+          )}
+          {isCostOverBudget && (
+            <div>
+              ⚠ Total estimasi biaya ({formatRemainingCostDisplay(String(realCost + remainCost))}) melebihi biaya rencana ({formatRemainingCostDisplay(String(plannedCostForItem))}).
+            </div>
+          )}
+          <div>
+            Catatan lapangan <strong>wajib diisi</strong> dan Direktur Utama
+            akan mendapat notifikasi.
+          </div>
+        </div>
+      )}
+
       <div className="field">
         <label>
           Catatan Lapangan
-          {isOverBudget && (
+          {(isOverBudget || isCostOverBudget) && (
             <span style={{ color: "var(--danger)", fontWeight: 600 }}> *</span>
           )}
         </label>
@@ -1279,14 +1298,16 @@ function ProgressCreateForm({
           onChange={(e) => setForm((p) => ({ ...p, note: e.target.value }))}
           rows={3}
           placeholder={
-            isOverBudget
+            isOverBudget || isCostOverBudget
               ? "Wajib diisi — jelaskan kondisi yang menyebabkan potensi over budget..."
               : "Kondisi lapangan, kendala, atau keterangan tambahan..."
           }
           style={{
             width: "100%",
             borderColor:
-              isOverBudget && !form.note.trim() ? "var(--danger)" : undefined,
+              (isOverBudget || isCostOverBudget) && !form.note.trim()
+                ? "var(--danger)"
+                : undefined,
           }}
         />
       </div>
