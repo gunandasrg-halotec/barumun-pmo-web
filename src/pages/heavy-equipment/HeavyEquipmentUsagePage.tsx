@@ -87,6 +87,15 @@ export default function HeavyEquipmentUsagePage() {
   });
   const analytics = (analyticsQ.data as any)?.data;
 
+  // KPI cards selalu menampilkan total keseluruhan (tidak terpengaruh filter tanggal),
+  // tetap menghormati filter alat/kebun.
+  const kpiTotalsQ = useQuery({
+    queryKey: ["heavy-equipment-analytics-total", filters.equipment_id, filters.kebun],
+    queryFn: () => heavyEquipmentService.analytics({ equipment_id: filters.equipment_id, kebun: filters.kebun }),
+    enabled: activeTab === "Analitik",
+  });
+  const kpiSummary = (kpiTotalsQ.data as any)?.data?.summary;
+
   const logsQ = useQuery({
     queryKey: ["heavy-equipment-logs", filters],
     queryFn: () => heavyEquipmentService.listLogs({ ...filters, limit: 200 }),
@@ -235,7 +244,7 @@ export default function HeavyEquipmentUsagePage() {
         ) : analyticsQ.error ? (
           <div className="section-card glass"><div className="danger-box">{extractError(analyticsQ.error)}</div></div>
         ) : analytics ? (
-          <AnalyticsView analytics={analytics} />
+          <AnalyticsView analytics={analytics} kpiSummary={kpiSummary} />
         ) : null
       )}
 
@@ -646,8 +655,8 @@ function RawDataByActivity({
 
 // ─── Analytics view ─────────────────────────────────────────────────────────
 
-function AnalyticsView({ analytics }: { analytics: any }) {
-  const s = analytics.summary;
+function AnalyticsView({ analytics, kpiSummary }: { analytics: any; kpiSummary?: any }) {
+  const s = kpiSummary ?? analytics.summary;
   const kpis = [
     { label: "Hari kerja", value: formatNumber(s.total_days, 0) },
     { label: "BBM total (L)", value: formatNumber(s.total_fuel_liters, 0) },
