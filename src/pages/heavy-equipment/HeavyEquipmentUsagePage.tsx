@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ResponsiveContainer,
@@ -25,12 +25,28 @@ import {
 
 const TABS = ["Analitik", "Data Mentah"];
 
-const daysAgoISO = (n: number) => {
+const firstOfMonthISO = () => {
   const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
 };
 const todayISO = () => new Date().toISOString().slice(0, 10);
+
+// Kalau data pertama proyek jatuh di bulan SEBELUM bulan berjalan (mis. proyek
+// baru mulai akhir Juli, sekarang sudah Agustus), default "1 bulan berjalan"
+// akan memotong ekor data bulan lalu. Dalam kasus itu, mundurkan date_from ke
+// tanggal data paling awal. Bulan-bulan berikutnya otomatis balik ke perilaku
+// normal (1 bulan berjalan) karena data paling awal sudah lebih dari 1 bulan lalu.
+function resolveDefaultDateFrom(earliestDataDateISO: string | null): string {
+  const fom = firstOfMonthISO();
+  if (!earliestDataDateISO) return fom;
+  const earliest = new Date(earliestDataDateISO + "T00:00:00");
+  const fomDate = new Date(fom + "T00:00:00");
+  const prevMonthStart = new Date(fomDate.getFullYear(), fomDate.getMonth() - 1, 1);
+  if (earliest >= prevMonthStart && earliest < fomDate) {
+    return earliestDataDateISO;
+  }
+  return fom;
+}
 
 function shortDate(iso?: string | null): string {
   if (!iso) return "";
@@ -60,11 +76,12 @@ function activityTimeLabels(a: HeavyEquipmentLogActivity, logDateIso: string): [
 export default function HeavyEquipmentUsagePage() {
   const [activeTab, setActiveTab] = useState(TABS[0]);
   const [filters, setFilters] = useState({
-    date_from: daysAgoISO(9),
+    date_from: firstOfMonthISO(),
     date_to: todayISO(),
     equipment_id: "",
     kebun: "",
   });
+  const dateDefaultAdjusted = useRef(false);
   const [detail, setDetail] = useState<HeavyEquipmentLog | null>(null);
   const [photoViewer, setPhotoViewer] = useState<{ urls: string[]; index: number } | null>(null);
 
@@ -96,6 +113,18 @@ export default function HeavyEquipmentUsagePage() {
     enabled: activeTab === "Analitik",
   });
   const kpiSummary = (kpiTotalsQ.data as any)?.data?.summary;
+
+  // Sekali saja (saat data pertama kali termuat, sebelum user mengubah filter
+  // manapun): sesuaikan default date_from bila data proyek dimulai di bulan lalu.
+  useEffect(() => {
+    if (dateDefaultAdjusted.current) return;
+    const dailySeries = (kpiTotalsQ.data as any)?.data?.daily_series as { date: string }[] | undefined;
+    if (!dailySeries) return;
+    dateDefaultAdjusted.current = true;
+    const earliest = dailySeries[0]?.date ?? null;
+    const resolved = resolveDefaultDateFrom(earliest);
+    setFilters((p) => (p.date_from === firstOfMonthISO() ? { ...p, date_from: resolved } : p));
+  }, [kpiTotalsQ.data]);
 
   const logsQ = useQuery({
     queryKey: ["heavy-equipment-logs", filters],
