@@ -25,9 +25,10 @@ import {
 
 const TABS = ["Analitik", "Data Mentah"];
 
-const firstOfMonthISO = () => {
+const daysAgoISO = (n: number) => {
   const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
 };
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -59,7 +60,7 @@ function activityTimeLabels(a: HeavyEquipmentLogActivity, logDateIso: string): [
 export default function HeavyEquipmentUsagePage() {
   const [activeTab, setActiveTab] = useState(TABS[0]);
   const [filters, setFilters] = useState({
-    date_from: firstOfMonthISO(),
+    date_from: daysAgoISO(9),
     date_to: todayISO(),
     equipment_id: "",
     kebun: "",
