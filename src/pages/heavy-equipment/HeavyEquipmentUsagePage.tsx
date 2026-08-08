@@ -411,13 +411,16 @@ function CostHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
   const { items, rows, colTotals, grandTotal } = useMemo(() => {
     const sorted = [...logs].sort((a, b) => a.log_date.localeCompare(b.log_date) || a.id.localeCompare(b.id));
 
-    // kumpulkan semua item biaya yang muncul (urutan kemunculan pertama)
-    const itemMap = new Map<string, string>(); // id → name
+    // kumpulkan semua item biaya yang muncul, diurutkan berdasarkan sort_order
+    // katalog (bukan urutan kemunculan) — mis. Gaji Operator/Helper selalu di depan.
+    const itemMap = new Map<string, { name: string; sort_order: number }>();
     sorted.forEach((l) => (l.costs ?? []).forEach((c) => {
       if (c.cost_item_id && c.name && !itemMap.has(c.cost_item_id))
-        itemMap.set(c.cost_item_id, c.name);
+        itemMap.set(c.cost_item_id, { name: c.name, sort_order: c.sort_order ?? 0 });
     }));
-    const items = Array.from(itemMap.entries()).map(([id, name]) => ({ id, name }));
+    const items = Array.from(itemMap.entries())
+      .map(([id, v]) => ({ id, name: v.name, sort_order: v.sort_order }))
+      .sort((a, b) => a.sort_order - b.sort_order);
 
     // satu baris per tanggal+alat
     const rows = sorted.map((l) => {

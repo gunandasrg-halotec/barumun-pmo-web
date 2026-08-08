@@ -407,6 +407,7 @@ export interface HeavyEquipmentCostItem {
   default_amount: number | null;
   is_active: boolean;
   sort_order: number;
+  is_system_managed?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -490,6 +491,7 @@ export interface HeavyEquipmentLogCost {
   id?: string;
   cost_item_id: string;
   name?: string | null;
+  sort_order?: number;
   amount: number;
 }
 
