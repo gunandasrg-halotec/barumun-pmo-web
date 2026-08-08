@@ -1148,6 +1148,13 @@ function ProgressCreateForm({
     e.preventDefault();
     setError("");
 
+    if (realVolume <= 0 && realCost <= 0) {
+      setError(
+        "Realisasi volume atau realisasi biaya harus diisi (tidak boleh keduanya 0).",
+      );
+      return;
+    }
+
     if ((isOverBudget || isCostOverBudget) && !form.note.trim()) {
       setError(
         "Catatan lapangan wajib diisi karena estimasi total melebihi rencana (volume dan/atau biaya).",
@@ -1160,7 +1167,7 @@ function ProgressCreateForm({
       const formData = new FormData();
       formData.append("wbd_node_id", form.wbd_node_id);
       formData.append("progress_date", form.progress_date);
-      formData.append("progress_volume", form.progress_volume);
+      if (form.progress_volume) formData.append("progress_volume", form.progress_volume);
       if (form.actual_cost) formData.append("actual_cost", form.actual_cost);
       if (form.note) formData.append("note", form.note);
       if (attachedFile) formData.append("attachment", attachedFile);
@@ -1244,21 +1251,24 @@ function ProgressCreateForm({
         </div>
         <div className="field">
           <label>
-            Volume Realisasi *{" "}
+            Volume Realisasi{" "}
             {preview?.unit && (
               <span style={{ color: "var(--muted)", fontWeight: 400 }}>
                 ({preview.unit})
               </span>
             )}
+            <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 11 }}>
+              {" "}
+              — boleh 0 kalau ada Biaya Realisasi
+            </span>
           </label>
           <input
             type="number"
             value={form.progress_volume}
             onChange={(e) => handleProgressVolumeChange(e.target.value)}
             step="0.0001"
-            min="0.0001"
+            min="0"
             placeholder="0.0000"
-            required
           />
         </div>
       </div>
