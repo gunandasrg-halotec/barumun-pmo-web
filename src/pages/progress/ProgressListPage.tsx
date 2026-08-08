@@ -234,6 +234,11 @@ export default function ProgressListPage() {
     }, 0),
   [itemNodes]);
 
+  // 3) Selisih antara kedua "Sisa Biaya" di atas — positif berarti estimasi progress
+  // masih di dalam rencana (on-budget); negatif berarti sudah/terestimasi over budget.
+  const selisihSisaBiaya = sisaBiayaSesuaiRencana - sisaBiayaEstimasiProgress;
+  const isOverBudgetProject = selisihSisaBiaya < 0;
+
   function toggleGroup(nodeId: string) {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
@@ -316,6 +321,14 @@ export default function ProgressListPage() {
               {sisaBiayaEstimasiProgress < 0
                 ? `+${formatCurrency(Math.abs(sisaBiayaEstimasiProgress))}`
                 : formatCurrency(sisaBiayaEstimasiProgress)}
+            </strong>
+          </div>
+          <div className="summary-item">
+            <span>Selisih Sisa Biaya ({isOverBudgetProject ? "Over Budget" : "On-Budget"})</span>
+            <strong style={{ color: isOverBudgetProject ? "var(--danger)" : "var(--ok)" }}>
+              {selisihSisaBiaya < 0
+                ? `-${formatCurrency(Math.abs(selisihSisaBiaya))}`
+                : formatCurrency(selisihSisaBiaya)}
             </strong>
           </div>
           <div className="summary-item">
