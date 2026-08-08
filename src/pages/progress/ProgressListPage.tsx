@@ -214,14 +214,25 @@ export default function ProgressListPage() {
 
   const doneCount = useMemo(() => allGroups.filter((g) => g.isDone).length, [allGroups]);
 
-  const totalSisaBiaya = useMemo(() =>
-    filteredGroups.reduce((sum, g) => {
-      const costPlan = Number(g.wbdNode?.planned_cost ?? 0);
-      const latestRemCost = g.nodeInfo?.latest_remaining_cost;
-      const costSisa = latestRemCost != null ? Number(latestRemCost) : costPlan;
-      return sum + costSisa;
+  // Dihitung dari SELURUH item WBD (itemNodes), bukan hanya yang sudah punya entri
+  // progress — item yang belum pernah diinput progress sama sekali harus tetap
+  // ikut terhitung penuh sesuai rencananya.
+  const totalRencanaBiayaSemua = useMemo(() =>
+    itemNodes.reduce((sum, n) => sum + Number(n.planned_cost ?? 0), 0),
+  [itemNodes]);
+
+  // 1) Sisa Biaya Yang Dibutuhkan Sesuai Rencana = Rencana total − Realisasi (approved) total.
+  const sisaBiayaSesuaiRencana = totalRencanaBiayaSemua - totalCostReal;
+
+  // 2) Estimasi Sisa Biaya yang dibutuhkan sesuai Progress = per item, pakai Sisa Estimasi
+  // terakhir (entri APPROVED, menghormati override) bila ada, atau Rencana penuh bila item
+  // belum punya entri disetujui sama sekali.
+  const sisaBiayaEstimasiProgress = useMemo(() =>
+    itemNodes.reduce((sum, n) => {
+      const rem = n.latest_remaining_cost;
+      return sum + (rem != null ? Number(rem) : Number(n.planned_cost ?? 0));
     }, 0),
-  [filteredGroups]);
+  [itemNodes]);
 
   function toggleGroup(nodeId: string) {
     setExpandedGroups((prev) => {
@@ -292,11 +303,19 @@ export default function ProgressListPage() {
             <strong>{formatCurrency(totalCostReal)}</strong>
           </div>
           <div className="summary-item">
-            <span>Sisa Biaya</span>
-            <strong style={{ color: totalSisaBiaya < 0 ? "var(--danger)" : "inherit" }}>
-              {totalSisaBiaya < 0
-                ? `+${formatCurrency(Math.abs(totalSisaBiaya))}`
-                : formatCurrency(totalSisaBiaya)}
+            <span>Sisa Biaya Yang Dibutuhkan Sesuai Rencana</span>
+            <strong style={{ color: sisaBiayaSesuaiRencana < 0 ? "var(--danger)" : "inherit" }}>
+              {sisaBiayaSesuaiRencana < 0
+                ? `+${formatCurrency(Math.abs(sisaBiayaSesuaiRencana))}`
+                : formatCurrency(sisaBiayaSesuaiRencana)}
+            </strong>
+          </div>
+          <div className="summary-item">
+            <span>Estimasi Sisa Biaya yang dibutuhkan sesuai Progress</span>
+            <strong style={{ color: sisaBiayaEstimasiProgress < 0 ? "var(--danger)" : "inherit" }}>
+              {sisaBiayaEstimasiProgress < 0
+                ? `+${formatCurrency(Math.abs(sisaBiayaEstimasiProgress))}`
+                : formatCurrency(sisaBiayaEstimasiProgress)}
             </strong>
           </div>
           <div className="summary-item">
