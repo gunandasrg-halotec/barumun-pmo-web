@@ -1,5 +1,5 @@
 import api from './api';
-import type { ApiResponse, WbdVersion, WbdNode } from '../types';
+import type { ApiResponse, WbdVersion, WbdNode, WbdRevisionDiff, WbdRevisionDecisionInput } from '../types';
 
 export const wbdService = {
   // Versions
@@ -74,6 +74,32 @@ export const wbdService = {
 
   resetSubmissions: async (projectId: string) => {
     const res = await api.post(`/projects/${projectId}/reset-submissions`);
+    return res.data;
+  },
+
+  // Revisi baseline in-place
+  unlockRevision: async (versionId: string) => {
+    const res = await api.post<ApiResponse<WbdVersion>>(`/wbd-versions/${versionId}/unlock-revision`);
+    return res.data;
+  },
+
+  revokeUnlock: async (versionId: string) => {
+    const res = await api.post<ApiResponse<WbdVersion>>(`/wbd-versions/${versionId}/revoke-unlock`);
+    return res.data;
+  },
+
+  startRevision: async (versionId: string) => {
+    const res = await api.post<ApiResponse<WbdVersion>>(`/wbd-versions/${versionId}/start-revision`);
+    return res.data;
+  },
+
+  getDiff: async (versionId: string) => {
+    const res = await api.get<ApiResponse<WbdRevisionDiff>>(`/wbd-versions/${versionId}/diff`);
+    return res.data;
+  },
+
+  finalize: async (versionId: string, decisions: WbdRevisionDecisionInput[]) => {
+    const res = await api.post<ApiResponse<WbdVersion>>(`/wbd-versions/${versionId}/finalize`, { decisions });
     return res.data;
   },
 };

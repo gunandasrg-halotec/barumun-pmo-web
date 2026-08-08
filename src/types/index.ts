@@ -66,7 +66,8 @@ export type WbdVersionStatus =
   | "PENDING_DIRECTOR_APPROVAL"
   | "FINAL_APPROVED"
   | "REJECTED"
-  | "SUPERSEDED";
+  | "SUPERSEDED"
+  | "MERGED";
 
 export interface WbdVersion {
   id: string;
@@ -75,6 +76,9 @@ export interface WbdVersion {
   status: WbdVersionStatus;
   is_active: boolean;
   based_on_version_id: string | null;
+  is_baseline_revision: boolean;
+  revision_unlocked_by: string | null;
+  revision_unlocked_at: string | null;
   submitted_by: { id: string; full_name: string } | null;
   submitted_at: string | null;
   approved_by: { id: string; full_name: string } | null;
@@ -83,6 +87,59 @@ export interface WbdVersion {
   rejected_at: string | null;
   rejection_reason: string | null;
   created_at: string;
+}
+
+// ─── WBD Baseline Revision (in-place edit + diff review) ─────────────────────
+
+export interface WbdDiffStatusImpact {
+  progress_entry_id: string;
+  status_before: string;
+  status_after: string;
+  new_remaining_volume: number | null;
+  new_remaining_cost: number | null;
+}
+
+export interface WbdDiffFieldChange {
+  before: string | number | null;
+  after: string | number | null;
+}
+
+export interface WbdDiffModifiedItem {
+  code: string;
+  name: string;
+  changes: Record<string, WbdDiffFieldChange>;
+  status_impact?: WbdDiffStatusImpact;
+}
+
+export interface WbdDiffAddedItem {
+  code: string;
+  name: string;
+  node_type: NodeType;
+  unit: string | null;
+  volume: number | null;
+  planned_cost: number | null;
+}
+
+export interface WbdDiffRemovedItem {
+  code: string;
+  name: string;
+  volume: number | null;
+  planned_cost: number | null;
+}
+
+export interface WbdRevisionDiff {
+  modified: WbdDiffModifiedItem[];
+  added: WbdDiffAddedItem[];
+  removed: WbdDiffRemovedItem[];
+  removed_blocked: WbdDiffRemovedItem[];
+}
+
+export type WbdRevisionDecisionValue = "APPROVED" | "REJECTED";
+
+export interface WbdRevisionDecisionInput {
+  code: string;
+  decision: WbdRevisionDecisionValue;
+  reason?: string;
 }
 
 export type NodeType = "GROUP" | "ITEM";
@@ -412,7 +469,7 @@ export interface HeavyEquipmentCostItem {
   updated_at?: string;
 }
 
-export type FuelType = "solar" | "dex_lite";
+export type FuelType = "solar" | "dex_lite" | "pertadex";
 
 export interface FuelStockReceiptEntry {
   fuel_type: FuelType;
@@ -449,6 +506,7 @@ export interface FuelStockData {
 export interface FuelStock {
   solar: FuelStockData;
   dex_lite: FuelStockData;
+  pertadex: FuelStockData;
 }
 
 export interface HeavyEquipmentActivityTypeConfig {
@@ -513,6 +571,7 @@ export interface HeavyEquipmentLog {
   kenek: string | null;
   fuel_liters: number | null;
   fuel_liters_dex_lite: number | null;
+  fuel_liters_pertadex: number | null;
   work_morning_start: string | null;
   work_morning_end: string | null;
   work_afternoon_start: string | null;

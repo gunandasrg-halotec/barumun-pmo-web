@@ -39,6 +39,7 @@ type FormShape = {
   kenek: string;
   fuel_liters: string;
   fuel_liters_dex_lite: string;
+  fuel_liters_pertadex: string;
   work_morning_start: string;
   work_morning_end: string;
   work_afternoon_start: string;
@@ -86,6 +87,12 @@ const TIME_OPTIONS: string[] = (() => {
 const LS_PIN = "he_field_pin";
 const LS_LISTS = "he_field_lists";
 
+const FUEL_META: Record<FuelType, { label: string; border: string; bg: string; color: string; icon: string }> = {
+  solar:    { label: "Solar",    border: "#d4a537", bg: "#fef3dc", color: "#7a5800", icon: "☀" },
+  dex_lite: { label: "Dex Lite", border: "#0f6e56", bg: "#e1f5ee", color: "#0f6e56", icon: "D" },
+  pertadex: { label: "Pertadex", border: "#7a3fc4", bg: "#efe6fb", color: "#4a2680", icon: "P" },
+};
+
 const emptyActivities = (types: HeavyEquipmentActivityTypeConfig[]): Record<string, ActivityState> =>
   Object.fromEntries(
     types.map((a) => [
@@ -103,6 +110,7 @@ const defaultForm = (): FormShape => ({
   kenek: "",
   fuel_liters: "",
   fuel_liters_dex_lite: "",
+  fuel_liters_pertadex: "",
   work_morning_start: "08:00",
   work_morning_end: "12:00",
   work_afternoon_start: "13:00",
@@ -590,23 +598,26 @@ export default function PublicHeavyEquipmentLogPage() {
 
               <div className="field">
                 <label className="required">Jenis BBM</label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  {([["solar", "Solar", "#d4a537", "#fef3dc", "#7a5800"], ["dex_lite", "Dex Lite", "#0f6e56", "#e1f5ee", "#0f6e56"]] as const).map(([val, label, border, bg, color]) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => setBbmForm((p) => ({ ...p, fuelType: val }))}
-                      style={{
-                        border: `2px solid ${bbmForm.fuelType === val ? border : "var(--line)"}`,
-                        borderRadius: 10, padding: "10px 8px", fontSize: 13, fontWeight: 700,
-                        background: bbmForm.fuelType === val ? bg : "white",
-                        color: bbmForm.fuelType === val ? color : "var(--muted)",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                  {(Object.keys(FUEL_META) as FuelType[]).map((val) => {
+                    const { label, border, bg, color } = FUEL_META[val];
+                    return (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setBbmForm((p) => ({ ...p, fuelType: val }))}
+                        style={{
+                          border: `2px solid ${bbmForm.fuelType === val ? border : "var(--line)"}`,
+                          borderRadius: 10, padding: "10px 8px", fontSize: 13, fontWeight: 700,
+                          background: bbmForm.fuelType === val ? bg : "white",
+                          color: bbmForm.fuelType === val ? color : "var(--muted)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -649,14 +660,14 @@ export default function PublicHeavyEquipmentLogPage() {
                     {bbmEntries.map((e, i) => {
                       const vol = e.qty_20l * 20 + e.qty_30l * 30 + e.qty_35l * 35 + e.qty_40l * 40 + e.extra_liters;
                       const parts = [e.qty_20l && `${e.qty_20l}×20L`, e.qty_30l && `${e.qty_30l}×30L`, e.qty_35l && `${e.qty_35l}×35L`, e.qty_40l && `${e.qty_40l}×40L`, e.extra_liters && `sisa ${e.extra_liters}L`].filter(Boolean).join(" · ");
-                      const isSolar = e.fuel_type === "solar";
+                      const meta = FUEL_META[e.fuel_type];
                       return (
                         <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: "white", border: "1px solid var(--line)", borderRadius: 12, padding: "10px 12px" }}>
-                          <div style={{ width: 32, height: 32, borderRadius: 8, background: isSolar ? "#fef3dc" : "#e1f5ee", color: isSolar ? "#8a6200" : "#0f6e56", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 14, fontWeight: 700 }}>
-                            {isSolar ? "☀" : "D"}
+                          <div style={{ width: 32, height: 32, borderRadius: 8, background: meta.bg, color: meta.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 14, fontWeight: 700 }}>
+                            {meta.icon}
                           </div>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700 }}>{isSolar ? "Solar" : "Dex Lite"}</div>
+                            <div style={{ fontSize: 13, fontWeight: 700 }}>{meta.label}</div>
                             <div style={{ fontSize: 11, color: "var(--muted)" }}>{parts}</div>
                           </div>
                           <div style={{ fontWeight: 700, color: "var(--green-700)", fontSize: 14 }}>{vol} L</div>
@@ -807,7 +818,7 @@ export default function PublicHeavyEquipmentLogPage() {
               </div>
               <div className="field">
                 <label>BBM (liter)</label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                   <div>
                     <div style={{ fontSize: 11, color: "#7a5800", fontWeight: 600, marginBottom: 4 }}>☀ Solar</div>
                     <input type="number" step="0.01" min="0" value={form.fuel_liters} onChange={(e) => set("fuel_liters", e.target.value)} placeholder="0" />
@@ -815,6 +826,10 @@ export default function PublicHeavyEquipmentLogPage() {
                   <div>
                     <div style={{ fontSize: 11, color: "#0f6e56", fontWeight: 600, marginBottom: 4 }}>⛽ Dex Lite</div>
                     <input type="number" step="0.01" min="0" value={form.fuel_liters_dex_lite} onChange={(e) => set("fuel_liters_dex_lite", e.target.value)} placeholder="0" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: "#4a2680", fontWeight: 600, marginBottom: 4 }}>⛽ Pertadex</div>
+                    <input type="number" step="0.01" min="0" value={form.fuel_liters_pertadex} onChange={(e) => set("fuel_liters_pertadex", e.target.value)} placeholder="0" />
                   </div>
                 </div>
               </div>

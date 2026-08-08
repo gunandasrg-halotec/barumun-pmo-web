@@ -142,7 +142,7 @@ export default function HeavyEquipmentUsagePage() {
     }),
     enabled: activeTab === "Data Mentah",
   });
-  const fuelStock = (fuelStockQ.data as any)?.data as { solar: FuelStockData; dex_lite: FuelStockData } | undefined;
+  const fuelStock = (fuelStockQ.data as any)?.data as { solar: FuelStockData; dex_lite: FuelStockData; pertadex: FuelStockData } | undefined;
 
   const setF = (k: keyof typeof filters, v: string) => setFilters((p) => ({ ...p, [k]: v }));
 
@@ -297,6 +297,7 @@ export default function HeavyEquipmentUsagePage() {
             {([
               { key: "solar", label: "Solar", icon: "☀️", accent: "#d4a537", bg: "#fef3dc", textColor: "#7a5800" },
               { key: "dex_lite", label: "Dex Lite", icon: "⛽", accent: "#0f6e56", bg: "#e1f5ee", textColor: "#0f6e56" },
+              { key: "pertadex", label: "Pertadex", icon: "🛢️", accent: "#7a3fc4", bg: "#efe6fb", textColor: "#4a2680" },
             ] as const).map(({ key, label, icon, accent, bg, textColor }) => {
               const d: FuelStockData | undefined = fuelStock?.[key];
               const solarEntries = fuelStock?.solar.entries ?? [];

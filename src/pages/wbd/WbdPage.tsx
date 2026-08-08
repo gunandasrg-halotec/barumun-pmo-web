@@ -28,6 +28,9 @@ export default function WbdPage() {
   const [copyFromVersionId, setCopyFromVersionId]     = useState<string>('');
   const [showSubmitWarning, setShowSubmitWarning]     = useState(false);
   const [showResetModal, setShowResetModal]           = useState(false);
+  const [showUnlockModal, setShowUnlockModal]         = useState(false);
+  const [showRevokeModal, setShowRevokeModal]         = useState(false);
+  const [revisionActionError, setRevisionActionError] = useState('');
 
   const projectQ  = useQuery({ queryKey: ['project', projectId],        queryFn: () => projectService.get(projectId!) });
   const versionsQ = useQuery({ queryKey: ['wbd-versions', projectId],   queryFn: () => wbdService.listVersions(projectId!), enabled: !!projectId });
@@ -55,6 +58,25 @@ export default function WbdPage() {
       setShowResetModal(false);
       setSelectedVersionId(null);
     },
+  });
+  const unlockRevisionMut = useMutation({
+    mutationFn: (id: string) => wbdService.unlockRevision(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['wbd-versions', projectId] }); setShowUnlockModal(false); },
+    onError: (err) => setRevisionActionError(extractError(err)),
+  });
+  const revokeUnlockMut = useMutation({
+    mutationFn: (id: string) => wbdService.revokeUnlock(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['wbd-versions', projectId] }); setShowRevokeModal(false); },
+    onError: (err) => setRevisionActionError(extractError(err)),
+  });
+  const startRevisionMut = useMutation({
+    mutationFn: (id: string) => wbdService.startRevision(id),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ['wbd-versions', projectId] });
+      setSelectedVersionId(res.data?.id ?? null);
+      setActiveTab('tree');
+    },
+    onError: (err) => setRevisionActionError(extractError(err)),
   });
 
   const project = (projectQ.data as any)?.data;
@@ -151,10 +173,34 @@ export default function WbdPage() {
           <div className="stretch" />
           {activeTab === 'tree' && versions.length > 0 && (
             <select value={selectedVersionId ?? ''} onChange={e => setSelectedVersionId(e.target.value)}>
-              {versions.map(v => (
-                <option key={v.id} value={v.id}>Version {v.version_number} — {v.status}{v.is_active ? ' ✓ Aktif' : ''}</option>
-              ))}
+              {versions.map(v => {
+                const baseVersion = v.is_baseline_revision ? versions.find(b => b.id === v.based_on_version_id) : null;
+                const label = v.is_baseline_revision
+                  ? `Revisi dari Baseline v${baseVersion?.version_number ?? '?'} — ${v.status}`
+                  : `Version ${v.version_number} — ${v.status}${v.is_active ? ' ✓ Aktif' : ''}`;
+                return <option key={v.id} value={v.id}>{label}</option>;
+              })}
             </select>
+          )}
+          {isDireksi() && selectedVersion?.is_active && (
+            selectedVersion.revision_unlocked_by ? (
+              <button className="btn secondary" onClick={() => { setRevisionActionError(''); setShowRevokeModal(true); }}>
+                🔒 Batalkan Akses Revisi
+              </button>
+            ) : (
+              <button className="btn secondary" onClick={() => { setRevisionActionError(''); setShowUnlockModal(true); }}>
+                🔓 Buka Akses Revisi Baseline
+              </button>
+            )
+          )}
+          {canManageWbd() && selectedVersion?.is_active && selectedVersion.revision_unlocked_by && (
+            <button
+              className="btn"
+              disabled={startRevisionMut.isPending}
+              onClick={() => { setRevisionActionError(''); startRevisionMut.mutate(selectedVersion.id); }}
+            >
+              {startRevisionMut.isPending ? 'Memulai...' : '✏️ Mulai Revisi Baseline'}
+            </button>
           )}
           {canManageWbd() && isDraft && selectedVersion && (
             <>
@@ -181,6 +227,21 @@ export default function WbdPage() {
             </>
           )}
         </div>
+
+        {revisionActionError && <div className="error-state" style={{ marginBottom: 12 }}>{revisionActionError}</div>}
+
+        {selectedVersion?.is_active && selectedVersion.revision_unlocked_by && (
+          <div className="info-box" style={{ marginBottom: 12 }}>
+            🔓 Direksi telah membuka akses revisi baseline untuk versi ini.
+            {canManageWbd() ? ' Klik "Mulai Revisi Baseline" untuk mengajukan perubahan.' : ' Menunggu Manajer Kebun / Admin Proyek memulai revisi.'}
+          </div>
+        )}
+
+        {selectedVersion?.is_baseline_revision && (
+          <div className="info-box" style={{ marginBottom: 12 }}>
+            ✏️ Ini adalah revisi baseline aktif — perubahan yang disetujui Direksi akan diterapkan langsung ke baseline (nomor versi baseline tidak berubah).
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -413,6 +474,74 @@ export default function WbdPage() {
                   onClick={() => resetMut.mutate()}
                 >
                   {resetMut.isPending ? 'Mereset...' : 'Ya, Reset Pengajuan'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Buka Akses Revisi Baseline */}
+      {showUnlockModal && selectedVersion && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowUnlockModal(false); }}>
+          <div className="modal-window" style={{ maxWidth: 520 }}>
+            <div className="modal-head">
+              <div>
+                <h4>Buka Akses Revisi Baseline</h4>
+                <p>Izinkan Manajer Kebun / Admin Proyek mengajukan revisi baseline WBD v{selectedVersion.version_number}.</p>
+              </div>
+              <button className="modal-close" onClick={() => setShowUnlockModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="info-box">
+                Setelah dibuka, Manajer Kebun / Admin Proyek dapat memulai revisi (mengedit item WBD baseline
+                ini). Perubahan yang mereka ajukan tidak langsung berlaku — Anda tetap harus meninjau dan
+                menyetujui (per item) sebelum diterapkan ke baseline.
+              </div>
+            </div>
+            <div className="modal-foot">
+              <div />
+              <div className="cluster">
+                <button className="btn secondary" onClick={() => setShowUnlockModal(false)}>Batal</button>
+                <button
+                  className="btn"
+                  disabled={unlockRevisionMut.isPending}
+                  onClick={() => unlockRevisionMut.mutate(selectedVersion.id)}
+                >
+                  {unlockRevisionMut.isPending ? 'Membuka...' : 'Ya, Buka Akses'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Batalkan Akses Revisi Baseline */}
+      {showRevokeModal && selectedVersion && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowRevokeModal(false); }}>
+          <div className="modal-window" style={{ maxWidth: 520 }}>
+            <div className="modal-head">
+              <div>
+                <h4>Batalkan Akses Revisi Baseline</h4>
+                <p>Tutup kembali akses revisi untuk WBD v{selectedVersion.version_number}.</p>
+              </div>
+              <button className="modal-close" onClick={() => setShowRevokeModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="info-box">
+                Aksi ini hanya berlaku jika belum ada revisi yang dimulai. Jika revisi sudah diajukan,
+                gunakan tombol Tolak pada revisi tersebut untuk membatalkannya.
+              </div>
+            </div>
+            <div className="modal-foot">
+              <div />
+              <div className="cluster">
+                <button className="btn secondary" onClick={() => setShowRevokeModal(false)}>Batal</button>
+                <button
+                  className="btn danger"
+                  disabled={revokeUnlockMut.isPending}
+                  onClick={() => revokeUnlockMut.mutate(selectedVersion.id)}
+                >
+                  {revokeUnlockMut.isPending ? 'Membatalkan...' : 'Ya, Batalkan Akses'}
                 </button>
               </div>
             </div>
