@@ -214,23 +214,48 @@ export default function ProgressListPage() {
 
   const doneCount = useMemo(() => allGroups.filter((g) => g.isDone).length, [allGroups]);
 
+  // Realisasi biaya approved kumulatif per node — dipakai untuk KPI Sisa Biaya di bawah.
+  // Item tanpa entri sama sekali tidak muncul di map ini (dianggap 0).
+  const realizedCostByNode = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const entry of entries) {
+      const nodeId: string = entry.wbd_node?.id ?? entry.wbd_node_id ?? "unknown";
+      if (!isApprovedEntry(entry)) continue;
+      map.set(nodeId, (map.get(nodeId) ?? 0) + Number(entry.actual_cost ?? 0));
+    }
+    return map;
+  }, [entries]);
+
   // Dihitung dari SELURUH item WBD (itemNodes), bukan hanya yang sudah punya entri
   // progress — item yang belum pernah diinput progress sama sekali harus tetap
   // ikut terhitung penuh sesuai rencananya.
-  const totalRencanaBiayaSemua = useMemo(() =>
-    itemNodes.reduce((sum, n) => sum + Number(n.planned_cost ?? 0), 0),
-  [itemNodes]);
 
-  // 1) Sisa Biaya Yang Dibutuhkan Sesuai Rencana = Rencana total − Realisasi (approved) total.
-  const sisaBiayaSesuaiRencana = totalRencanaBiayaSemua - totalCostReal;
+  // 1) Sisa Biaya Yang Dibutuhkan Sesuai Rencana = Rencana total − realisasi approved
+  // yang dipakai per item: bila belum ada realisasi → 0 (rencana penuh tetap "sisa");
+  // bila rencana − realisasi > 0 (on-budget) → pakai realisasi aktual; bila < 0
+  // (over-budget) → realisasi yang dipakai di-cap ke rencana item itu sendiri.
+  const sisaBiayaSesuaiRencana = useMemo(() => {
+    let totalRencana = 0;
+    let totalRealisasiDipakai = 0;
+    for (const n of itemNodes) {
+      const plan = Number(n.planned_cost ?? 0);
+      totalRencana += plan;
+      const realized = realizedCostByNode.get(n.id);
+      if (realized == null) continue; // belum ada realisasi approved sama sekali
+      totalRealisasiDipakai += plan - realized > 0 ? realized : plan;
+    }
+    return totalRencana - totalRealisasiDipakai;
+  }, [itemNodes, realizedCostByNode]);
 
-  // 2) Estimasi Sisa Biaya yang dibutuhkan sesuai Progress = per item, pakai Sisa Estimasi
-  // terakhir (entri APPROVED, menghormati override) bila ada, atau Rencana penuh bila item
-  // belum punya entri disetujui sama sekali.
+  // 2) Estimasi Sisa Biaya yang dibutuhkan sesuai Progress = per item:
+  // - belum ada entri disetujui → rencana penuh
+  // - Sisa Estimasi terakhir (entri APPROVED, menghormati override) ≥ 0 (on-budget) → pakai nilai itu
+  // - Sisa Estimasi terakhir < 0 (over-budget) → pakai excess-nya saja (nilai absolut)
   const sisaBiayaEstimasiProgress = useMemo(() =>
     itemNodes.reduce((sum, n) => {
       const rem = n.latest_remaining_cost;
-      return sum + (rem != null ? Number(rem) : Number(n.planned_cost ?? 0));
+      if (rem == null) return sum + Number(n.planned_cost ?? 0);
+      return sum + (rem >= 0 ? Number(rem) : Math.abs(Number(rem)));
     }, 0),
   [itemNodes]);
 
@@ -1061,9 +1086,11 @@ function ProgressCreateForm({
   // Sisa Biaya Estimasi = Sisa sebelum entri ini − Biaya Realisasi entri ini (nilai
   // yang benar-benar ada di field Biaya Realisasi, baik hasil auto-isi dari volume ×
   // harga satuan atau ketikan manual user) — menghormati override entri sebelumnya.
+  // Sengaja TIDAK di-cap ke 0: kalau biaya realisasi melebihi sisa, angka ini boleh
+  // negatif supaya item tercatat over budget (bukan seolah pas nol/selesai).
   function recomputeRemainingCost(actualCostVal: number) {
     if (remainingCostOverridden) return;
-    const newRemCost = Math.max(0, priorRemainingCost - actualCostVal);
+    const newRemCost = priorRemainingCost - actualCostVal;
     setRemainingCost(String(Math.round(newRemCost)));
   }
 
@@ -1099,9 +1126,11 @@ function ProgressCreateForm({
   }
 
   function handleRemainingCostChange(val: string) {
-    // Strip all non-numeric characters so the raw value stays a plain number string
-    const raw = val.replace(/[^\d]/g, "");
-    setRemainingCost(raw);
+    // Simpan tanda minus di depan (boleh negatif = over budget), strip sisanya
+    // yang bukan digit.
+    const isNegative = val.trim().startsWith("-");
+    const digits = val.replace(/[^\d]/g, "");
+    setRemainingCost((isNegative && digits ? "-" : "") + digits);
     setRemainingCostOverridden(true);
   }
 
