@@ -511,11 +511,14 @@ function BbmHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
         equipment: g.equipment,
         rows: [...g.logs]
           .sort((a, b) => a.log_date.localeCompare(b.log_date) || a.id.localeCompare(b.id))
-          .reduce<{ date: string; usage: number; cost: number; cumUsage: number; cumCost: number }[]>((acc, l) => {
-            const usage = l.fuel_liters ?? 0;
+          .reduce<{ date: string; usageSolar: number; usageDexLite: number; usagePertadex: number; usage: number; cost: number; cumUsage: number; cumCost: number }[]>((acc, l) => {
+            const usageSolar = l.fuel_liters ?? 0;
+            const usageDexLite = l.fuel_liters_dex_lite ?? 0;
+            const usagePertadex = l.fuel_liters_pertadex ?? 0;
+            const usage = usageSolar + usageDexLite + usagePertadex;
             const cost  = findBbmCost(l.costs);
             const prev  = acc.length > 0 ? acc[acc.length - 1] : { cumUsage: 0, cumCost: 0 };
-            acc.push({ date: l.log_date, usage, cost, cumUsage: prev.cumUsage + usage, cumCost: prev.cumCost + cost });
+            acc.push({ date: l.log_date, usageSolar, usageDexLite, usagePertadex, usage, cost, cumUsage: prev.cumUsage + usage, cumCost: prev.cumCost + cost });
             return acc;
           }, []),
       }))
@@ -540,7 +543,9 @@ function BbmHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
                     <tr>
                       <th>Tanggal</th>
                       <th style={{ textAlign: "right" }}>Harga/liter (Rp)</th>
-                      <th style={{ textAlign: "right" }}>Penggunaan (L)</th>
+                      <th style={{ textAlign: "right" }}>Solar (L)</th>
+                      <th style={{ textAlign: "right" }}>Dex Lite (L)</th>
+                      <th style={{ textAlign: "right" }}>Pertadex (L)</th>
                       <th style={{ textAlign: "right" }}>Biaya (Rp)</th>
                       <th style={{ textAlign: "right" }}>Penggunaan s/d (L)</th>
                       <th style={{ textAlign: "right" }}>Biaya s/d (Rp)</th>
@@ -555,7 +560,9 @@ function BbmHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
                           <td style={{ fontSize: 12, textAlign: "right" }}>
                             {hargaPerLiter != null ? formatNumber(hargaPerLiter, 0) : "—"}
                           </td>
-                          <td style={{ fontSize: 12, textAlign: "right" }}>{formatNumber(r.usage, 0)}</td>
+                          <td style={{ fontSize: 12, textAlign: "right" }}>{r.usageSolar > 0 ? formatNumber(r.usageSolar, 0) : "—"}</td>
+                          <td style={{ fontSize: 12, textAlign: "right" }}>{r.usageDexLite > 0 ? formatNumber(r.usageDexLite, 0) : "—"}</td>
+                          <td style={{ fontSize: 12, textAlign: "right" }}>{r.usagePertadex > 0 ? formatNumber(r.usagePertadex, 0) : "—"}</td>
                           <td style={{ fontSize: 12, textAlign: "right" }}>{r.cost > 0 ? formatNumber(r.cost, 0) : "—"}</td>
                           <td style={{ fontSize: 12, textAlign: "right" }}>{formatNumber(r.cumUsage, 0)}</td>
                           <td style={{ fontSize: 12, textAlign: "right" }}>{r.cumCost > 0 ? formatNumber(r.cumCost, 0) : "—"}</td>
