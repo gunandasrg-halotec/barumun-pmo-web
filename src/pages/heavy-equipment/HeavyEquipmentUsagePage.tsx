@@ -133,12 +133,13 @@ export default function HeavyEquipmentUsagePage() {
   });
   const logs: HeavyEquipmentLog[] = (logsQ.data as any)?.data ?? [];
 
+  // Kartu Stok BBM = saldo ledger kumulatif sejak awal — TIDAK boleh ikut filter tanggal
+  // halaman (yang defaultnya "bulan berjalan" untuk tabel data mentah). Memfilter tanggal
+  // di sini akan memotong penerimaan lama dan membuat Saldo salah/negatif secara keliru.
   const fuelStockQ = useQuery({
-    queryKey: ["heavy-equipment-fuel-stock", filters.kebun, filters.date_from, filters.date_to],
+    queryKey: ["heavy-equipment-fuel-stock", filters.kebun],
     queryFn: () => heavyEquipmentService.getFuelStock({
       kebun: filters.kebun || undefined,
-      date_from: filters.date_from || undefined,
-      date_to: filters.date_to || undefined,
     }),
     enabled: activeTab === "Data Mentah",
   });
