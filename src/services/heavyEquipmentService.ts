@@ -27,7 +27,7 @@ export const heavyEquipmentService = {
     });
     return res.data;
   },
-  create: async (d: { code: string; type: string; brand: string; is_active?: boolean }) => {
+  create: async (d: { code: string; type: string; brand: string; is_active?: boolean; is_vendor_owned?: boolean }) => {
     const res = await api.post<ApiResponse<HeavyEquipment>>("/heavy-equipment", d);
     return res.data;
   },

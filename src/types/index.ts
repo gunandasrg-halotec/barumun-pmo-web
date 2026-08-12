@@ -454,6 +454,7 @@ export interface HeavyEquipment {
   type: string;   // Jenis Alat Berat
   brand: string;  // Merek Alat Berat
   is_active: boolean;
+  is_vendor_owned: boolean;   // Milik vendor/pihak ketiga
   created_at?: string;
   updated_at?: string;
 }
@@ -625,6 +626,17 @@ export interface HeavyEquipmentAnalytics {
     days: number;
     fuel_liters: number;
     cost: number;
+  }>;
+  by_equipment_activity: Array<{
+    equipment_id: string;
+    equipment_code: string;
+    activity_type: string;
+    label: string;
+    unit: string | null;
+    total_volume: number;
+    total_hours: number;
+    entry_count: number;
+    total_cost: number;
   }>;
   by_cost_item: Array<{ name: string; total: number }>;
 }

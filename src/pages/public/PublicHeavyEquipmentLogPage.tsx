@@ -283,6 +283,10 @@ export default function PublicHeavyEquipmentLogPage() {
 
   const set = (k: keyof FormShape, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
+  // Alat milik vendor (pihak ketiga): Operator opsional, biaya operasional harian tidak berlaku.
+  const selectedEquipment = equipments.find((eq) => eq.id === form.heavy_equipment_id);
+  const isVendorEquipment = !!selectedEquipment?.is_vendor_owned;
+
   function applyLists(eq: HeavyEquipment[], ci: HeavyEquipmentCostItem[], at: HeavyEquipmentActivityTypeConfig[]) {
     setEquipments(eq);
     setCostItems(ci);
@@ -350,7 +354,8 @@ export default function PublicHeavyEquipmentLogPage() {
     setSubmitting(true);
     try {
       const usePin = pin || localStorage.getItem(LS_PIN) || "";
-      await heavyEquipmentPublicService.submitLog(usePin, buildFormData(form, activities, activityTypes, costs, photos));
+      const costsToSend = isVendorEquipment ? {} : costs;
+      await heavyEquipmentPublicService.submitLog(usePin, buildFormData(form, activities, activityTypes, costsToSend, photos));
       setSubmitted(true);
     } catch (err) {
       setSubmitError(extractError(err) + " — bila sinyal buruk, simpan sebagai draft dan kirim nanti.");
@@ -834,8 +839,13 @@ export default function PublicHeavyEquipmentLogPage() {
                 </div>
               </div>
               <div className="field">
-                <label className="required">Operator</label>
-                <input value={form.operator} onChange={(e) => set("operator", e.target.value)} required />
+                <label className={isVendorEquipment ? undefined : "required"}>
+                  Operator
+                  {isVendorEquipment && (
+                    <span style={{ fontWeight: 400, color: "var(--muted)" }}> — opsional untuk alat vendor</span>
+                  )}
+                </label>
+                <input value={form.operator} onChange={(e) => set("operator", e.target.value)} required={!isVendorEquipment} />
               </div>
               <div className="field">
                 <label>Kenek</label>
@@ -982,7 +992,11 @@ export default function PublicHeavyEquipmentLogPage() {
               </div>
             </div>
 
-            {costItems.length > 0 && (
+            {isVendorEquipment ? (
+              <div className="info-box" style={{ fontSize: 13 }}>
+                Biaya operasional harian tidak berlaku untuk alat vendor — ditagih terpisah oleh vendor.
+              </div>
+            ) : costItems.length > 0 && (
               <div>
                 <label style={{ fontSize: 13, fontWeight: 500, color: "var(--green-800)" }}>Biaya operasional hari ini</label>
                 <div style={{ display: "grid", gap: 6, marginTop: 8 }}>

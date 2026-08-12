@@ -90,6 +90,7 @@ function EquipmentTab({ canEdit }: { canEdit: boolean }) {
                 <th>Kode</th>
                 <th>Jenis</th>
                 <th>Merek</th>
+                <th>Pemilik</th>
                 <th>Status</th>
                 {canEdit && <th>Aksi</th>}
               </tr>
@@ -100,6 +101,13 @@ function EquipmentTab({ canEdit }: { canEdit: boolean }) {
                   <td style={{ fontWeight: 600, fontSize: 13 }}>{it.code}</td>
                   <td style={{ fontSize: 13 }}>{it.type}</td>
                   <td style={{ fontSize: 13 }}>{it.brand}</td>
+                  <td>
+                    {it.is_vendor_owned ? (
+                      <span className="badge delay">Vendor</span>
+                    ) : (
+                      <span style={{ fontSize: 13, color: "var(--muted)" }}>Perusahaan</span>
+                    )}
+                  </td>
                   <td>
                     <span className={`badge ${it.is_active ? "done" : "delay"}`}>
                       {it.is_active ? "Aktif" : "Nonaktif"}
@@ -122,7 +130,7 @@ function EquipmentTab({ canEdit }: { canEdit: boolean }) {
                 </tr>
               ))}
               {items.length === 0 && (
-                <tr><td colSpan={canEdit ? 5 : 4} className="empty-state">Belum ada alat berat.</td></tr>
+                <tr><td colSpan={canEdit ? 6 : 5} className="empty-state">Belum ada alat berat.</td></tr>
               )}
             </tbody>
           </table>
@@ -162,6 +170,7 @@ function EquipmentForm({
     code: initial?.code ?? "",
     type: initial?.type ?? "",
     brand: initial?.brand ?? "",
+    is_vendor_owned: initial?.is_vendor_owned ?? false,
   });
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSuccess(form); }}>
@@ -177,6 +186,19 @@ function EquipmentForm({
       <div className="field">
         <label className="required">Merek Alat Berat</label>
         <input value={form.brand} onChange={(e) => setForm((p) => ({ ...p, brand: e.target.value }))} required placeholder="mis. Komatsu PC200" />
+      </div>
+      <div className="field">
+        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={form.is_vendor_owned}
+            onChange={(e) => setForm((p) => ({ ...p, is_vendor_owned: e.target.checked }))}
+          />
+          Milik Vendor / Pihak Ketiga
+        </label>
+        <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--muted)" }}>
+          Kalau dicentang: Nama Operator &amp; biaya operasional harian tidak wajib diisi saat lapor.
+        </p>
       </div>
       <div className="modal-foot" style={{ padding: 0, marginTop: 4 }}>
         <div />

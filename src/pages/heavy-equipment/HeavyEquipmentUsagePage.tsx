@@ -625,6 +625,7 @@ function RawDataByActivity({
                 <thead>
                   <tr>
                     <th>Tanggal</th>
+                    <th>Alat</th>
                     <th>Kebun</th>
                     <th>Area</th>
                     <th>Operator</th>
@@ -655,6 +656,7 @@ function RawDataByActivity({
                         onClick={() => onSelectLog(log)}
                       >
                         <td style={{ fontSize: 12 }}>{formatDate(log.log_date)}</td>
+                        <td style={{ fontSize: 12, fontWeight: 600 }}>{log.equipment?.code ?? "—"}</td>
                         <td style={{ fontSize: 12 }}>{log.kebun}</td>
                         <td style={{ fontSize: 12 }}>{log.area ?? "—"}</td>
                         <td style={{ fontSize: 12 }}>{log.operator}</td>
@@ -773,6 +775,42 @@ function AnalyticsView({ analytics, kpiSummary }: { analytics: any; kpiSummary?:
         <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 10, marginBottom: 0 }}>
           Biaya per jenis pekerjaan dialokasikan dari biaya operasional harian, sebanding porsi jam kerja pekerjaan tersebut pada hari itu.
         </p>
+      </div>
+
+      {/* Breakdown per alat x jenis pekerjaan — tambahan di samping ringkasan gabungan di atas,
+          supaya kalau 1 pekerjaan dikerjakan >1 alat, kontribusi masing-masing alat tetap terlihat. */}
+      <div className="section-card glass" style={{ marginBottom: 18 }}>
+        <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>Ringkasan per Alat &amp; Jenis Pekerjaan</h4>
+        {(analytics.by_equipment_activity as any[])?.length === 0 ? (
+          <div className="empty-state">Belum ada data pekerjaan pada rentang ini.</div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Alat</th>
+                  <th>Jenis Pekerjaan</th>
+                  <th style={{ textAlign: "right" }}>Hasil Kerja</th>
+                  <th style={{ textAlign: "right" }}>Jam Kerja</th>
+                  <th style={{ textAlign: "right" }}>Biaya</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(analytics.by_equipment_activity as any[]).map((r) => (
+                  <tr key={r.equipment_id + r.activity_type}>
+                    <td style={{ fontSize: 13, fontWeight: 600 }}>{r.equipment_code}</td>
+                    <td style={{ fontSize: 13 }}>{r.label}</td>
+                    <td style={{ fontSize: 13, textAlign: "right" }}>
+                      {r.unit ? `${formatNumber(r.total_volume, 0)} ${r.unit}` : "—"}
+                    </td>
+                    <td style={{ fontSize: 13, textAlign: "right" }}>{formatNumber(r.total_hours, 1)} jam</td>
+                    <td style={{ fontSize: 13, textAlign: "right" }}>Rp {formatNumber(r.total_cost, 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="section-card glass" style={{ marginBottom: 18 }}>
