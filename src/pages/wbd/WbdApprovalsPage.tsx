@@ -297,7 +297,7 @@ export default function WbdApprovalsPage() {
       {/* Modal Review Diff Revisi Baseline */}
       {diffVersion && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) closeDiffModal(); }}>
-          <div className="modal-window" style={{ maxWidth: 1120, maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
+          <div className="modal-window" style={{ width: 'min(1274px, 100%)', maxWidth: 1274, maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
             <div className="modal-head">
               <div>
                 <h4>Tinjau Revisi Baseline — {diffVersion.project_name}</h4>
