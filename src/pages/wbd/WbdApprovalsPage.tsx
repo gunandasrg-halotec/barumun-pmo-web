@@ -319,8 +319,8 @@ export default function WbdApprovalsPage() {
                     const d = decisions[item.code] ?? { decision: 'APPROVED', reason: '' };
                     return (
                       <div key={item.code} className="card" style={{ marginBottom: 12, padding: 14, border: `1px solid ${d.decision === 'APPROVED' ? 'var(--success-border, #86efac)' : 'var(--danger-border, #fca5a5)'}` }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                          <div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                          <div style={{ minWidth: 0, flex: '1 1 260px', wordBreak: 'break-word' }}>
                             <span className="badge badge-secondary" style={{ marginRight: 8 }}>Diubah</span>
                             <strong>{item.code}</strong> — {item.name}
                           </div>
@@ -340,20 +340,22 @@ export default function WbdApprovalsPage() {
                           </div>
                         </div>
 
-                        <table className="table" style={{ marginTop: 10, fontSize: 13 }}>
-                          <thead>
-                            <tr><th>Field</th><th>Sebelum</th><th>Sesudah</th></tr>
-                          </thead>
-                          <tbody>
-                            {Object.entries(item.changes).map(([field, change]: [string, any]) => (
-                              <tr key={field}>
-                                <td>{fieldLabels[field] ?? field}</td>
-                                <td>{formatFieldValue(field, change.before)}</td>
-                                <td style={{ fontWeight: 600 }}>{formatFieldValue(field, change.after)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                        <div style={{ overflowX: 'auto', marginTop: 10 }}>
+                          <table className="table" style={{ fontSize: 13, minWidth: 360 }}>
+                            <thead>
+                              <tr><th>Field</th><th>Sebelum</th><th>Sesudah</th></tr>
+                            </thead>
+                            <tbody>
+                              {Object.entries(item.changes).map(([field, change]: [string, any]) => (
+                                <tr key={field}>
+                                  <td>{fieldLabels[field] ?? field}</td>
+                                  <td>{formatFieldValue(field, change.before)}</td>
+                                  <td style={{ fontWeight: 600 }}>{formatFieldValue(field, change.after)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
 
                         {item.status_impact && (
                           <div className="danger-box" style={{ marginTop: 10, fontSize: 13 }}>
@@ -387,8 +389,8 @@ export default function WbdApprovalsPage() {
                     const d = decisions[item.code] ?? { decision: 'APPROVED', reason: '' };
                     return (
                       <div key={item.code} className="card" style={{ marginBottom: 12, padding: 14, border: `1px solid ${d.decision === 'APPROVED' ? 'var(--success-border, #86efac)' : 'var(--danger-border, #fca5a5)'}` }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                          <div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                          <div style={{ minWidth: 0, flex: '1 1 260px', wordBreak: 'break-word' }}>
                             <span className="badge badge-success" style={{ marginRight: 8 }}>Item Baru</span>
                             <strong>{item.code}</strong> — {item.name}
                             {item.volume !== null && <span style={{ marginLeft: 8, color: 'var(--muted)' }}>Vol: {item.volume} {item.unit ?? ''}</span>}
@@ -429,8 +431,8 @@ export default function WbdApprovalsPage() {
                     const d = decisions[item.code] ?? { decision: 'APPROVED', reason: '' };
                     return (
                       <div key={item.code} className="card" style={{ marginBottom: 12, padding: 14, border: `1px solid ${d.decision === 'APPROVED' ? 'var(--success-border, #86efac)' : 'var(--danger-border, #fca5a5)'}` }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                          <div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                          <div style={{ minWidth: 0, flex: '1 1 260px', wordBreak: 'break-word' }}>
                             <span className="badge badge-danger" style={{ marginRight: 8 }}>Dihapus</span>
                             <strong>{item.code}</strong> — {item.name}
                             {item.volume !== null && <span style={{ marginLeft: 8, color: 'var(--muted)' }}>Vol: {item.volume}</span>}
