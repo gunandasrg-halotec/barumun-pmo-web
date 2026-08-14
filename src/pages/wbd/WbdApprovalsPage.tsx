@@ -150,9 +150,13 @@ export default function WbdApprovalsPage() {
     sort_order: 'Urutan',
   };
 
+  function isMoneyField(field: string): boolean {
+    return field === 'planned_cost' || field === 'rate';
+  }
+
   function formatFieldValue(field: string, value: any): string {
     if (value === null || value === undefined || value === '') return '—';
-    if (field === 'planned_cost' || field === 'rate') return formatCurrency(Number(value));
+    if (isMoneyField(field)) return formatCurrency(Number(value));
     return String(value);
   }
 
@@ -289,7 +293,7 @@ export default function WbdApprovalsPage() {
       {/* Modal Review Diff Revisi Baseline */}
       {diffVersion && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) closeDiffModal(); }}>
-          <div className="modal-window" style={{ maxWidth: 860, maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
+          <div className="modal-window" style={{ maxWidth: 1120, maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
             <div className="modal-head">
               <div>
                 <h4>Tinjau Revisi Baseline — {diffVersion.project_name}</h4>
@@ -343,16 +347,23 @@ export default function WbdApprovalsPage() {
                         <div style={{ overflowX: 'auto', marginTop: 10 }}>
                           <table className="table" style={{ fontSize: 13, minWidth: 360, tableLayout: 'fixed', width: '100%' }}>
                             <thead>
-                              <tr><th style={{ width: '28%' }}>Field</th><th style={{ width: '36%' }}>Sebelum</th><th style={{ width: '36%' }}>Sesudah</th></tr>
+                              <tr>
+                                <th style={{ width: '28%', textAlign: 'left' }}>Field</th>
+                                <th style={{ width: '36%', textAlign: 'left' }}>Sebelum</th>
+                                <th style={{ width: '36%', textAlign: 'left' }}>Sesudah</th>
+                              </tr>
                             </thead>
                             <tbody>
-                              {Object.entries(item.changes).map(([field, change]: [string, any]) => (
-                                <tr key={field}>
-                                  <td style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{fieldLabels[field] ?? field}</td>
-                                  <td style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{formatFieldValue(field, change.before)}</td>
-                                  <td style={{ fontWeight: 600, whiteSpace: 'normal', wordBreak: 'break-word' }}>{formatFieldValue(field, change.after)}</td>
-                                </tr>
-                              ))}
+                              {Object.entries(item.changes).map(([field, change]: [string, any]) => {
+                                const money = isMoneyField(field);
+                                return (
+                                  <tr key={field}>
+                                    <td style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{fieldLabels[field] ?? field}</td>
+                                    <td style={{ whiteSpace: 'normal', wordBreak: 'break-word', textAlign: money ? 'right' : 'left' }}>{formatFieldValue(field, change.before)}</td>
+                                    <td style={{ fontWeight: 600, whiteSpace: 'normal', wordBreak: 'break-word', textAlign: money ? 'right' : 'left' }}>{formatFieldValue(field, change.after)}</td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
