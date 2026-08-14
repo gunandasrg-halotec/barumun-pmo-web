@@ -298,7 +298,7 @@ export default function WbdApprovalsPage() {
               <button className="modal-close" onClick={closeDiffModal}>×</button>
             </div>
 
-            <div className="modal-body" style={{ overflowY: 'auto', flex: 1 }}>
+            <div className="modal-body" style={{ overflowY: 'auto', flex: 1, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', minWidth: 0 }}>
               {diffQ.isLoading ? (
                 <LoadingState />
               ) : !diff ? (
@@ -341,16 +341,16 @@ export default function WbdApprovalsPage() {
                         </div>
 
                         <div style={{ overflowX: 'auto', marginTop: 10 }}>
-                          <table className="table" style={{ fontSize: 13, minWidth: 360 }}>
+                          <table className="table" style={{ fontSize: 13, minWidth: 360, tableLayout: 'fixed', width: '100%' }}>
                             <thead>
-                              <tr><th>Field</th><th>Sebelum</th><th>Sesudah</th></tr>
+                              <tr><th style={{ width: '28%' }}>Field</th><th style={{ width: '36%' }}>Sebelum</th><th style={{ width: '36%' }}>Sesudah</th></tr>
                             </thead>
                             <tbody>
                               {Object.entries(item.changes).map(([field, change]: [string, any]) => (
                                 <tr key={field}>
-                                  <td>{fieldLabels[field] ?? field}</td>
-                                  <td>{formatFieldValue(field, change.before)}</td>
-                                  <td style={{ fontWeight: 600 }}>{formatFieldValue(field, change.after)}</td>
+                                  <td style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{fieldLabels[field] ?? field}</td>
+                                  <td style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{formatFieldValue(field, change.before)}</td>
+                                  <td style={{ fontWeight: 600, whiteSpace: 'normal', wordBreak: 'break-word' }}>{formatFieldValue(field, change.after)}</td>
                                 </tr>
                               ))}
                             </tbody>
