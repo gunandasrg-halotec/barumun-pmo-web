@@ -534,12 +534,14 @@ thead th {
   color: var(--green-800);
   font-size: 12px;
   letter-spacing: 0.02em;
+  text-align: left;
 }
 th,
 td {
   padding: 12px 14px;
   border-bottom: 1px solid rgba(42, 69, 53, 0.08);
   vertical-align: middle;
+  text-align: left;
   white-space: nowrap;
 }
 tbody tr:hover {

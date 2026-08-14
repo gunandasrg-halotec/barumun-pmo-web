@@ -154,6 +154,10 @@ export default function WbdApprovalsPage() {
     return field === 'planned_cost' || field === 'rate';
   }
 
+  function isNumericField(field: string): boolean {
+    return isMoneyField(field) || field === 'volume' || field === 'duration_days' || field === 'sort_order';
+  }
+
   function formatFieldValue(field: string, value: any): string {
     if (value === null || value === undefined || value === '') return '—';
     if (isMoneyField(field)) return formatCurrency(Number(value));
@@ -355,12 +359,12 @@ export default function WbdApprovalsPage() {
                             </thead>
                             <tbody>
                               {Object.entries(item.changes).map(([field, change]: [string, any]) => {
-                                const money = isMoneyField(field);
+                                const numeric = isNumericField(field);
                                 return (
                                   <tr key={field}>
                                     <td style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{fieldLabels[field] ?? field}</td>
-                                    <td style={{ whiteSpace: 'normal', wordBreak: 'break-word', textAlign: money ? 'right' : 'left' }}>{formatFieldValue(field, change.before)}</td>
-                                    <td style={{ fontWeight: 600, whiteSpace: 'normal', wordBreak: 'break-word', textAlign: money ? 'right' : 'left' }}>{formatFieldValue(field, change.after)}</td>
+                                    <td style={{ whiteSpace: 'normal', wordBreak: 'break-word', textAlign: numeric ? 'right' : 'left' }}>{formatFieldValue(field, change.before)}</td>
+                                    <td style={{ fontWeight: 600, whiteSpace: 'normal', wordBreak: 'break-word', textAlign: numeric ? 'right' : 'left' }}>{formatFieldValue(field, change.after)}</td>
                                   </tr>
                                 );
                               })}
