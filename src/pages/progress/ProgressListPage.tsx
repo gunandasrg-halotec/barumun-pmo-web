@@ -122,8 +122,12 @@ export default function ProgressListPage() {
 
   const approveMut = useMutation({
     mutationFn: (id: string) => progressService.approve(id),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["progress", projectId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["progress", projectId] });
+      // Menyetujui entri mengubah "entri APPROVED terakhir", jadi latest_remaining_*
+      // (dasar Sisa Estimasi entri berikutnya) ikut berubah — wajib di-refetch.
+      queryClient.invalidateQueries({ queryKey: ["wbd-nodes"] });
+    },
   });
 
   const rejectMut = useMutation({
@@ -131,6 +135,7 @@ export default function ProgressListPage() {
       progressService.reject(id, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["progress", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["wbd-nodes"] });
       setRejectModal(null);
       setRejectReason("");
     },
@@ -916,6 +921,12 @@ export default function ProgressListPage() {
                   queryClient.invalidateQueries({
                     queryKey: ["progress", projectId],
                   });
+                  // WAJIB: latest_remaining_volume/cost dipakai sebagai "sisa sebelum
+                  // entri ini" untuk entri BERIKUTNYA. Tanpa invalidasi ini, seluruh
+                  // entri yang diinput dalam satu sesi memakai prior basi yang sama,
+                  // sehingga Sisa Estimasi tidak pernah berantai (mis. I.3-VENDOR:
+                  // 9 entri berturut-turut semuanya dihitung dari rencana penuh).
+                  queryClient.invalidateQueries({ queryKey: ["wbd-nodes"] });
                 }}
                 onCancel={() => setShowCreate(false)}
               />
