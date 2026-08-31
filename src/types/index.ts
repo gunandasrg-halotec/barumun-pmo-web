@@ -97,6 +97,9 @@ export interface WbdDiffStatusImpact {
   status_after: string;
   new_remaining_volume: number | null;
   new_remaining_cost: number | null;
+  /** true bila label status benar-benar berubah — penyesuaian sisa selalu
+   *  diterapkan setiap rencana berubah, tapi peringatan hanya untuk yang berubah status. */
+  status_changed?: boolean;
 }
 
 export interface WbdDiffFieldChange {

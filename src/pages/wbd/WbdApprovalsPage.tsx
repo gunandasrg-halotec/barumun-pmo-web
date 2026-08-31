@@ -372,7 +372,7 @@ export default function WbdApprovalsPage() {
                           </table>
                         </div>
 
-                        {item.status_impact && (
+                        {item.status_impact?.status_changed && (
                           <div className="danger-box" style={{ marginTop: 10, fontSize: 13 }}>
                             ⚠ Status akan berubah: <strong>{item.status_impact.status_before}</strong> → <strong>{item.status_impact.status_after}</strong>
                             {item.status_impact.new_remaining_volume !== null && (
