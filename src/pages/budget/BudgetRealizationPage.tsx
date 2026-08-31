@@ -53,6 +53,12 @@ export type ItemCalc = {
   isOver: boolean;
 };
 
+/** Deviasi biaya per item = sisa sesuai rencana - sisa sesuai progress.
+ *  Negatif = estimasi progress butuh lebih banyak dari yang tersisa di rencana (over budget). */
+function dev(c: ItemCalc): number {
+  return c.sisaRencana - c.sisaProgress;
+}
+
 function emptyCalc(plan: number, volume: number): ItemCalc {
   return {
     realVolume: 0,
@@ -295,6 +301,9 @@ export default function BudgetRealizationPage() {
           <td className="br-num" style={c.isOver ? { color: "var(--danger)" } : undefined}>
             {formatNumber(c.sisaProgress, 0)}
           </td>
+          <td className="br-num" style={dev(c) < 0 ? { color: "var(--danger)", fontWeight: 700 } : undefined}>
+            {formatNumber(dev(c), 0)}
+          </td>
         </tr>,
       );
       return out;
@@ -319,6 +328,9 @@ export default function BudgetRealizationPage() {
         <td className="br-num">{formatNumber(sub.real, 0)}</td>
         <td className="br-num">{formatNumber(sub.sisaR, 0)}</td>
         <td className="br-num">{formatNumber(sub.sisaP, 0)}</td>
+        <td className="br-num" style={sub.sisaR - sub.sisaP < 0 ? { color: "var(--danger)" } : undefined}>
+          {formatNumber(sub.sisaR - sub.sisaP, 0)}
+        </td>
       </tr>,
     );
 
@@ -338,6 +350,9 @@ export default function BudgetRealizationPage() {
           <td className="br-num">{formatNumber(sub.real, 0)}</td>
           <td className="br-num">{formatNumber(sub.sisaR, 0)}</td>
           <td className="br-num">{formatNumber(sub.sisaP, 0)}</td>
+          <td className="br-num" style={sub.sisaR - sub.sisaP < 0 ? { color: "var(--danger)" } : undefined}>
+            {formatNumber(sub.sisaR - sub.sisaP, 0)}
+          </td>
         </tr>,
       );
     }
@@ -373,6 +388,8 @@ export default function BudgetRealizationPage() {
             <span>Sisa (rencana)</span><b>{formatNumber(c.sisaRencana, 0)}</b>
             <span>Sisa (progress)</span>
             <b style={c.isOver ? { color: "var(--danger)" } : undefined}>{formatNumber(c.sisaProgress, 0)}</b>
+            <span>Deviasi biaya</span>
+            <b style={dev(c) < 0 ? { color: "var(--danger)" } : undefined}>{formatNumber(dev(c), 0)}</b>
           </div>
         </div>,
       );
@@ -429,7 +446,7 @@ export default function BudgetRealizationPage() {
             </strong>
           </div>
           <div className="summary-item">
-            <span>Selisih Sisa Biaya ({totals.selisih < 0 ? "Over Budget" : "On-Budget"})</span>
+            <span>Deviasi Biaya ({totals.selisih < 0 ? "Over Budget" : "On-Budget"})</span>
             <strong style={{ color: totals.selisih < 0 ? "var(--danger)" : "var(--ok)" }}>
               {totals.selisih < 0
                 ? `-${formatCurrency(Math.abs(totals.selisih))}`
@@ -528,6 +545,7 @@ export default function BudgetRealizationPage() {
                   <th className="br-num">Realisasi biaya</th>
                   <th className="br-num">Sisa (rencana)</th>
                   <th className="br-num">Sisa (progress)</th>
+                  <th className="br-num">Deviasi biaya</th>
                 </tr>
               </thead>
               <tbody>{roots.flatMap((n) => renderRows(n, 0))}</tbody>
@@ -545,6 +563,9 @@ export default function BudgetRealizationPage() {
                   <td className="br-num br-foot" style={totals.selisih < 0 ? { color: "var(--danger)" } : undefined}>
                     {formatNumber(totals.sisaP, 0)}
                   </td>
+                  <td className="br-num br-foot" style={totals.selisih < 0 ? { color: "var(--danger)" } : undefined}>
+                    {formatNumber(totals.selisih, 0)}
+                  </td>
                 </tr>
               </tfoot>
             </table>
@@ -558,6 +579,7 @@ export default function BudgetRealizationPage() {
               <div><span>Total realisasi biaya</span><b>{formatNumber(totals.real, 0)}</b></div>
               <div><span>Total sisa (rencana)</span><b>{formatNumber(totals.sisaR, 0)}</b></div>
               <div><span>Total sisa (progress)</span><b>{formatNumber(totals.sisaP, 0)}</b></div>
+              <div><span>Deviasi biaya</span><b style={totals.selisih < 0 ? { color: "var(--danger)" } : undefined}>{formatNumber(totals.selisih, 0)}</b></div>
             </div>
           </div>
         </>

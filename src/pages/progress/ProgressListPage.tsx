@@ -349,7 +349,7 @@ export default function ProgressListPage() {
             </strong>
           </div>
           <div className="summary-item">
-            <span>Selisih Sisa Biaya ({isOverBudgetProject ? "Over Budget" : "On-Budget"})</span>
+            <span>Deviasi Biaya ({isOverBudgetProject ? "Over Budget" : "On-Budget"})</span>
             <strong style={{ color: isOverBudgetProject ? "var(--danger)" : "var(--ok)" }}>
               {selisihSisaBiaya < 0
                 ? `-${formatCurrency(Math.abs(selisihSisaBiaya))}`

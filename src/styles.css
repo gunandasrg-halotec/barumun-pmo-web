@@ -1373,16 +1373,17 @@ select {
 .budget-real .br-table th.br-num { text-align: right; }
 
 /* Lebar kolom — total 100%, tidak perlu scroll horizontal. */
-.budget-real .br-table th:nth-child(1) { width: 24%; }
-.budget-real .br-table th:nth-child(2) { width: 6%; }
-.budget-real .br-table th:nth-child(3) { width: 9%; }
-.budget-real .br-table th:nth-child(4) { width: 7%; }
-.budget-real .br-table th:nth-child(5) { width: 11%; }
-.budget-real .br-table th:nth-child(6) { width: 7%; }
-.budget-real .br-table th:nth-child(7) { width: 7%; }
-.budget-real .br-table th:nth-child(8) { width: 11%; }
+.budget-real .br-table th:nth-child(1) { width: 21%; }
+.budget-real .br-table th:nth-child(2) { width: 5%; }
+.budget-real .br-table th:nth-child(3) { width: 8%; }
+.budget-real .br-table th:nth-child(4) { width: 6%; }
+.budget-real .br-table th:nth-child(5) { width: 10%; }
+.budget-real .br-table th:nth-child(6) { width: 6%; }
+.budget-real .br-table th:nth-child(7) { width: 6%; }
+.budget-real .br-table th:nth-child(8) { width: 10%; }
 .budget-real .br-table th:nth-child(9) { width: 9%; }
 .budget-real .br-table th:nth-child(10) { width: 9%; }
+.budget-real .br-table th:nth-child(11) { width: 10%; }
 
 /* Baris total menempel di bawah — sticky harus di level sel, bukan <tr>/<tfoot>. */
 .budget-real .br-table .br-foot {
@@ -1417,11 +1418,15 @@ select {
 @media (max-width: 1099px) {
   .budget-real .br-col-unit,
   .budget-real .br-col-rate { display: none; }
-  .budget-real .br-table th:nth-child(1) { width: 30%; }
-  .budget-real .br-table th:nth-child(5) { width: 14%; }
-  .budget-real .br-table th:nth-child(8) { width: 14%; }
-  .budget-real .br-table th:nth-child(9) { width: 12%; }
-  .budget-real .br-table th:nth-child(10) { width: 12%; }
+  .budget-real .br-table th:nth-child(1) { width: 24%; }
+  .budget-real .br-table th:nth-child(4) { width: 8%; }
+  .budget-real .br-table th:nth-child(5) { width: 13%; }
+  .budget-real .br-table th:nth-child(6) { width: 8%; }
+  .budget-real .br-table th:nth-child(7) { width: 8%; }
+  .budget-real .br-table th:nth-child(8) { width: 13%; }
+  .budget-real .br-table th:nth-child(9) { width: 8.5%; }
+  .budget-real .br-table th:nth-child(10) { width: 8.5%; }
+  .budget-real .br-table th:nth-child(11) { width: 9%; }
 }
 
 /* Mobile — tabel diganti daftar kartu. */
