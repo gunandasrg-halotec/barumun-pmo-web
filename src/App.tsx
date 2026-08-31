@@ -8,6 +8,7 @@ import WbdPage from "./pages/wbd/WbdPage";
 import WbdApprovalsPage from "./pages/wbd/WbdApprovalsPage";
 import GanttPage from "./pages/analytics/GanttPage";
 import ProgressListPage from "./pages/progress/ProgressListPage";
+import BudgetRealizationPage from "./pages/budget/BudgetRealizationPage";
 import CostListPage from "./pages/cost/CostListPage";
 import FilesPage from "./pages/files/FilesPage";
 import SCurvePage from "./pages/analytics/SCurvePage";
@@ -54,6 +55,7 @@ export default function App() {
           path="projects/:projectId/progress"
           element={<ProgressListPage />}
         />
+        <Route path="projects/:projectId/budget-realization" element={<BudgetRealizationPage />} />
         <Route path="projects/:projectId/costs" element={<CostListPage />} />
         <Route path="projects/:projectId/files" element={<FilesPage />} />
         <Route path="projects/:projectId/s-curve" element={<SCurvePage />} />

@@ -216,6 +216,7 @@ export default function Sidebar() {
 
             <div className="menu-group-title">Execution</div>
             <NavBtn to={`/projects/${projectId}/progress`} label="Progress"  sub="Input realisasi lapangan" />
+            <NavBtn to={`/projects/${projectId}/budget-realization`} label="Budget VS Realization" sub="Rencana vs realisasi biaya" />
             <NavBtn to={`/projects/${projectId}/files`}    label="Documents" sub="Kontrak & bukti lapangan" />
 
             <div className="menu-group-title">Analytics</div>

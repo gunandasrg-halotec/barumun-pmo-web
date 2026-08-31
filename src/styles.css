@@ -1333,3 +1333,169 @@ select {
   overflow-x: hidden;
 }
 
+
+/* ── Budget VS Realization ─────────────────────────────────────────────────── */
+/* Header tabel harus tetap terlihat saat menggulir. Karena `.table-wrap` punya
+   overflow-x:auto (yang membuat overflow-y ikut jadi auto → jadi scroll container
+   dan merusak sticky terhadap viewport), halaman ini pakai wrapper sendiri TANPA
+   overflow di desktop. */
+.budget-real .br-table-wrap {
+  width: 100%;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.95);
+  padding: 0 0 6px;
+}
+.budget-real .br-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.budget-real .br-table th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #eef4ed;
+  font-size: 11px;
+  padding: 10px 8px;
+}
+.budget-real .br-table td {
+  padding: 8px;
+  white-space: nowrap;
+}
+/* Nama pekerjaan boleh membungkus supaya tabel tidak melebar keluar layar. */
+.budget-real .br-table .br-item {
+  white-space: normal;
+  word-break: break-word;
+}
+.budget-real .br-num { text-align: right; }
+.budget-real .br-table th.br-num { text-align: right; }
+
+/* Lebar kolom — total 100%, tidak perlu scroll horizontal. */
+.budget-real .br-table th:nth-child(1) { width: 24%; }
+.budget-real .br-table th:nth-child(2) { width: 6%; }
+.budget-real .br-table th:nth-child(3) { width: 9%; }
+.budget-real .br-table th:nth-child(4) { width: 7%; }
+.budget-real .br-table th:nth-child(5) { width: 11%; }
+.budget-real .br-table th:nth-child(6) { width: 7%; }
+.budget-real .br-table th:nth-child(7) { width: 7%; }
+.budget-real .br-table th:nth-child(8) { width: 11%; }
+.budget-real .br-table th:nth-child(9) { width: 9%; }
+.budget-real .br-table th:nth-child(10) { width: 9%; }
+
+/* Baris total menempel di bawah — sticky harus di level sel, bukan <tr>/<tfoot>. */
+.budget-real .br-table .br-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: #e3ecdf;
+  font-weight: 800;
+  color: var(--green-800);
+  border-top: 1px solid var(--line);
+}
+.budget-real .br-over-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  background: rgba(203, 95, 69, 0.12);
+  color: var(--danger);
+  font-size: 10px;
+  font-weight: 700;
+}
+.budget-real .br-note {
+  padding: 8px 12px 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+/* KPI bar halaman ini tidak sticky supaya tidak bertabrakan dengan header tabel. */
+.budget-real .br-summary { position: static; }
+.budget-real .br-cards { display: none; }
+
+/* Tablet — sembunyikan Satuan & Tarif, sisanya masih muat. */
+@media (max-width: 1099px) {
+  .budget-real .br-col-unit,
+  .budget-real .br-col-rate { display: none; }
+  .budget-real .br-table th:nth-child(1) { width: 30%; }
+  .budget-real .br-table th:nth-child(5) { width: 14%; }
+  .budget-real .br-table th:nth-child(8) { width: 14%; }
+  .budget-real .br-table th:nth-child(9) { width: 12%; }
+  .budget-real .br-table th:nth-child(10) { width: 12%; }
+}
+
+/* Mobile — tabel diganti daftar kartu. */
+@media (max-width: 767px) {
+  .budget-real .br-table-wrap { display: none; }
+  .budget-real .br-cards { display: block; }
+  .budget-real .br-toolbar input[type="text"],
+  .budget-real .br-toolbar input[type="date"] { width: 100%; }
+  .budget-real .br-card {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .budget-real .br-card-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .budget-real .br-card-meta {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .budget-real .br-card-grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 10px;
+    font-size: 12px;
+  }
+  .budget-real .br-card-grid span { color: var(--muted); }
+  .budget-real .br-card-grid b { text-align: right; font-weight: 700; }
+  .budget-real .br-card-group {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    background: rgba(35, 69, 49, 0.96);
+    color: #fff;
+    border-radius: 12px;
+    padding: 8px 12px;
+    margin: 12px 0 8px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .budget-real .br-card-sub {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    background: rgba(212, 165, 55, 0.12);
+    color: #6a4a07;
+    border-radius: 12px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .budget-real .br-card-total {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: #e3ecdf;
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--green-800);
+  }
+  .budget-real .br-card-total div {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 2px 0;
+  }
+}
