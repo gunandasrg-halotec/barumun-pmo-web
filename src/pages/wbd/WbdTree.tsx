@@ -388,6 +388,31 @@ export default function WbdTree({ nodes, isEditable, onAddChild, onRefresh }: Pr
   const rootNodes = nodes.filter(n => n.parent_node_id === null).sort((a, b) => a.sort_order - b.sort_order);
   const totalCost = rootNodes.reduce((s, n) => s + Number(n.planned_cost ?? 0), 0);
 
+  // Status "Selesai" adalah status TURUNAN, bukan kolom tersimpan: kolom
+  // wbd_nodes.status tidak pernah diisi DONE oleh kode mana pun (selalu ACTIVE),
+  // sehingga halaman ini dulu selalu menampilkan "Berjalan" walau item sudah
+  // selesai di halaman Progress. Pakai aturan yang sama persis dengan
+  // ProgressListPage: sisa volume dari entri APPROVED terakhir = 0 -> Selesai.
+  function isItemDone(n: WbdNode): boolean {
+    const plan = Number(n.volume ?? 0);
+    const rem = (n as any).latest_remaining_volume;
+    if (plan <= 0 || rem == null) return false;
+    return Number(rem) === 0;
+  }
+
+  // GROUP dianggap selesai bila punya keturunan ITEM dan SEMUANYA sudah selesai.
+  function isNodeDone(n: WbdNode): boolean {
+    if (n.node_type !== 'GROUP') return isItemDone(n);
+    const items = descendantItems(n);
+    return items.length > 0 && items.every(isItemDone);
+  }
+
+  function descendantItems(n: WbdNode): WbdNode[] {
+    return nodes
+      .filter(c => c.parent_node_id === n.id)
+      .flatMap(c => (c.node_type === 'GROUP' ? descendantItems(c) : [c]));
+  }
+
   function renderRows(node: WbdNode, depth = 0): React.ReactNode {
     const children   = nodes.filter(n => n.parent_node_id === node.id).sort((a, b) => a.sort_order - b.sort_order);
     const hasChildren = children.length > 0;
@@ -399,7 +424,9 @@ export default function WbdTree({ nodes, isEditable, onAddChild, onRefresh }: Pr
     const groupDurationDays = groupRange?.start && groupRange?.end
       ? Math.round((new Date(groupRange.end + 'T00:00:00').getTime() - new Date(groupRange.start + 'T00:00:00').getTime()) / 86400000) + 1
       : null;
-    const st         = STATUS_MAP[node.status ?? ''] ?? { label: node.status ?? '—', cls: 'planned' };
+    const st         = isNodeDone(node)
+      ? STATUS_MAP.DONE
+      : (STATUS_MAP[node.status ?? ''] ?? { label: node.status ?? '—', cls: 'planned' });
     const subtotal   = isGroup ? children.reduce((s, c) => s + Number(c.planned_cost ?? 0), 0) : 0;
     const compPct    = isGroup && totalCost > 0 ? ((subtotal / totalCost) * 100).toFixed(2) : null;
 

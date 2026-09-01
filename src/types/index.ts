@@ -184,6 +184,10 @@ export interface WbdNode {
   end_date?: string | null;
   status: string;
   sort_order: number;
+  /** Sisa volume/biaya dari entri progress APPROVED terakhir — dasar status
+   *  turunan "Selesai" dan "Over Budget" (lihat WbdNodeResource). */
+  latest_remaining_volume?: number | string | null;
+  latest_remaining_cost?: number | string | null;
   children?: WbdNode[];
 }
 
