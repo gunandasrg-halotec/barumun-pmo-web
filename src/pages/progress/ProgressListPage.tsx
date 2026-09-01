@@ -53,6 +53,7 @@ function flattenNodes(
   volume: number | null;
   rate: number | null;
   planned_cost: number | null;
+  status: string | null;
   latest_remaining_volume: number | null;
   latest_remaining_cost: number | null;
 }[] {
@@ -66,6 +67,7 @@ function flattenNodes(
             volume: n.volume ?? null,
             rate: n.rate ?? null,
             planned_cost: n.planned_cost ?? null,
+            status: n.status ?? null,
             latest_remaining_volume:
               (n as any).latest_remaining_volume != null
                 ? Number((n as any).latest_remaining_volume)
@@ -174,13 +176,11 @@ export default function ProgressListPage() {
         return ia - ib;
       })
       .map((g) => {
-        const volPlan = Number(g.wbdNode?.volume ?? g.nodeInfo?.volume ?? 0);
-        // Sisa Volume = field "Sisa Estimasi" dari entri APPROVED terakhir (bisa di-override
-        // manual oleh user), bukan hitung ulang Rencana − Realisasi — fallback ke Rencana
-        // penuh bila belum ada entri disetujui sama sekali.
-        const latestRemVol = g.nodeInfo?.latest_remaining_volume;
-        const volSisa = latestRemVol != null ? Number(latestRemVol) : volPlan;
-        const isDone = volPlan > 0 && volSisa === 0;
+        // Status selesai dibaca dari kolom status item (di-maintain backend dari
+        // "Sisa Biaya Estimasi" yang disimpan user saat input progress), BUKAN dari
+        // volume realisasi -- ada pekerjaan under-scoping yang volume realisasinya
+        // kurang dari rencana tapi tetap dinyatakan selesai.
+        const isDone = (g.nodeInfo as any)?.status === "DONE";
         return { ...g, isDone };
       });
   }, [entries, itemNodes]);

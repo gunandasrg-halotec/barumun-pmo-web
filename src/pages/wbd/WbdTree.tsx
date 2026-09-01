@@ -388,16 +388,12 @@ export default function WbdTree({ nodes, isEditable, onAddChild, onRefresh }: Pr
   const rootNodes = nodes.filter(n => n.parent_node_id === null).sort((a, b) => a.sort_order - b.sort_order);
   const totalCost = rootNodes.reduce((s, n) => s + Number(n.planned_cost ?? 0), 0);
 
-  // Status "Selesai" adalah status TURUNAN, bukan kolom tersimpan: kolom
-  // wbd_nodes.status tidak pernah diisi DONE oleh kode mana pun (selalu ACTIVE),
-  // sehingga halaman ini dulu selalu menampilkan "Berjalan" walau item sudah
-  // selesai di halaman Progress. Pakai aturan yang sama persis dengan
-  // ProgressListPage: sisa volume dari entri APPROVED terakhir = 0 -> Selesai.
+  // Status item dibaca dari kolom wbd_nodes.status yang di-maintain backend
+  // (ProgressService::recomputeNodeStatus) berdasarkan "Sisa Biaya Estimasi" yang
+  // disimpan user saat input progress. Satu sumber kebenaran dengan halaman
+  // Progress dan dengan guard input progress di backend.
   function isItemDone(n: WbdNode): boolean {
-    const plan = Number(n.volume ?? 0);
-    const rem = (n as any).latest_remaining_volume;
-    if (plan <= 0 || rem == null) return false;
-    return Number(rem) === 0;
+    return n.status === 'DONE';
   }
 
   // GROUP dianggap selesai bila punya keturunan ITEM dan SEMUANYA sudah selesai.
