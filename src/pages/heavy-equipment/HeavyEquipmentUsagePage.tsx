@@ -14,6 +14,7 @@ import {
   Legend,
 } from "recharts";
 import { heavyEquipmentService } from "../../services/heavyEquipmentService";
+import Pagination from "../../components/ui/Pagination";
 import { extractError, formatNumber, formatDate } from "../../utils/format";
 import {
   type HeavyEquipment,
@@ -583,6 +584,8 @@ function BbmHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
 
 // ─── Data mentah: satu tabel per jenis pekerjaan ───────────────────────────
 
+const RAW_DATA_PAGE_SIZE = 20;
+
 function RawDataByActivity({
   logs,
   activityTypes,
@@ -592,6 +595,8 @@ function RawDataByActivity({
   activityTypes: HeavyEquipmentActivityTypeConfig[];
   onSelectLog: (l: HeavyEquipmentLog) => void;
 }) {
+  const [pages, setPages] = useState<Record<string, number>>({});
+
   const tables = activityTypes.map((actType) => {
     type Row = { log: HeavyEquipmentLog; activity: HeavyEquipmentLogActivity; cumVolume: number };
     const rows: Row[] = [];
@@ -611,7 +616,13 @@ function RawDataByActivity({
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
-      {tables.map(({ actType, rows }) => (
+      {tables.map(({ actType, rows }) => {
+        const totalPages = Math.max(1, Math.ceil(rows.length / RAW_DATA_PAGE_SIZE));
+        const page = Math.min(pages[actType.code] ?? 1, totalPages);
+        const pageRows = rows.slice((page - 1) * RAW_DATA_PAGE_SIZE, page * RAW_DATA_PAGE_SIZE);
+        const setPage = (p: number) => setPages((prev) => ({ ...prev, [actType.code]: p }));
+
+        return (
         <div key={actType.code} className="section-card glass">
           <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>
             {actType.name}
@@ -646,7 +657,7 @@ function RawDataByActivity({
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(({ log, activity, cumVolume }) => {
+                  {pageRows.map(({ log, activity, cumVolume }) => {
                     const [start, end] = activityTimeLabels(activity, log.log_date);
                     return (
                       <tr
@@ -691,8 +702,12 @@ function RawDataByActivity({
               </table>
             </div>
           )}
+          {rows.length > RAW_DATA_PAGE_SIZE && (
+            <Pagination page={page} total={rows.length} limit={RAW_DATA_PAGE_SIZE} onChange={setPage} />
+          )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
