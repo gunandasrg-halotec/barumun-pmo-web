@@ -26,6 +26,9 @@ import {
 
 const TABS = ["Analitik", "Data Mentah"];
 
+/** Jumlah baris per halaman untuk semua tabel/kartu berpaginasi di tab Data Mentah. */
+const PAGE_SIZE = 20;
+
 const firstOfMonthISO = () => {
   const d = new Date();
   return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
@@ -300,86 +303,22 @@ export default function HeavyEquipmentUsagePage() {
               { key: "solar", label: "Solar", icon: "☀️", accent: "#d4a537", bg: "#fef3dc", textColor: "#7a5800" },
               { key: "dex_lite", label: "Dex Lite", icon: "⛽", accent: "#0f6e56", bg: "#e1f5ee", textColor: "#0f6e56" },
               { key: "pertadex", label: "Pertadex", icon: "🛢️", accent: "#7a3fc4", bg: "#efe6fb", textColor: "#4a2680" },
-            ] as const).map(({ key, label, icon, accent, bg, textColor }) => {
-              const d: FuelStockData | undefined = fuelStock?.[key];
-              const solarEntries = fuelStock?.solar.entries ?? [];
-              return (
-                <div key={key} className="section-card glass" style={{ border: `1.5px solid ${accent}30`, padding: "16px 18px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{icon}</div>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)" }}>Stock BBM</div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: textColor }}>{label}</div>
-                    </div>
-                  </div>
-                  {fuelStockQ.isLoading ? (
-                    <div style={{ fontSize: 12, color: "var(--muted)" }}>Memuat...</div>
-                  ) : fuelStockQ.error ? (
-                    <div style={{ fontSize: 12, color: "var(--danger)" }}>Gagal memuat</div>
-                  ) : d ? (
-                    <>
-                      <div style={{ display: "grid", gridTemplateColumns: key === "solar" ? "1fr 1fr 1fr" : "1fr 1fr", gap: 8, marginBottom: d.entries.length > 0 ? 12 : 0 }}>
-                        <div style={{ background: bg, borderRadius: 8, padding: "10px 12px" }}>
-                          <div style={{ fontSize: 11, color: textColor, fontWeight: 600, marginBottom: 2 }}>Diterima</div>
-                          <div style={{ fontSize: 18, fontWeight: 800, color: textColor, fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.total_received, 0)} <span style={{ fontSize: 11, fontWeight: 600 }}>L</span></div>
-                        </div>
-                        {key === "solar" && (
-                          <div style={{ background: "#fdecea", borderRadius: 8, padding: "10px 12px", border: "1px solid #f5aca640" }}>
-                            <div style={{ fontSize: 11, color: "#8a2c25", fontWeight: 600, marginBottom: 2 }}>Digunakan</div>
-                            <div style={{ fontSize: 18, fontWeight: 800, color: "#8a2c25", fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.total_used, 0)} <span style={{ fontSize: 11, fontWeight: 600 }}>L</span></div>
-                          </div>
-                        )}
-                        <div style={{ background: accent + "15", borderRadius: 8, padding: "10px 12px", border: `1px solid ${accent}40` }}>
-                          <div style={{ fontSize: 11, color: textColor, fontWeight: 600, marginBottom: 2 }}>Saldo</div>
-                          <div style={{ fontSize: 18, fontWeight: 800, color: d.saldo < 0 ? "#cb5f45" : textColor, fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.saldo, 0)} <span style={{ fontSize: 11, fontWeight: 600 }}>L</span></div>
-                        </div>
-                      </div>
-                      {d.entries.length > 0 && (
-                        <div style={{ borderTop: `1px solid ${accent}20`, paddingTop: 10, display: "grid", gap: 5 }}>
-                          {d.entries.map((entry) => {
-                            const isUsage = entry.entry_type === "usage";
-                            const hasSolarSameDay = key === "dex_lite"
-                              ? solarEntries.some((s) => s.receipt_date === entry.receipt_date && s.kebun === entry.kebun)
-                              : false;
-                            const showPhotos = !isUsage && (key === "solar" || !hasSolarSameDay) && entry.photos.length > 0;
-                            const parts = isUsage
-                              ? "Pemakaian alat berat"
-                              : [
-                                  entry.qty_20l && `${entry.qty_20l}×20L`,
-                                  entry.qty_30l && `${entry.qty_30l}×30L`,
-                                  entry.qty_35l && `${entry.qty_35l}×35L`,
-                                  entry.qty_40l && `${entry.qty_40l}×40L`,
-                                  entry.extra_liters && `sisa ${entry.extra_liters}L`,
-                                ].filter(Boolean).join(" · ");
-                            return (
-                              <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-                                <span style={{ color: "var(--muted)", minWidth: 30, fontVariantNumeric: "tabular-nums" }}>
-                                  {entry.receipt_date.slice(5).replace("-", "/")}
-                                </span>
-                                <span style={{ flex: 1, color: isUsage ? "#8a2c25" : "var(--text)", fontStyle: isUsage ? "italic" : "normal" }}>{parts}</span>
-                                <span style={{ fontWeight: 700, color: isUsage ? "#cb5f45" : textColor, fontVariantNumeric: "tabular-nums" }}>
-                                  {isUsage ? "−" : "+"}{formatNumber(Math.abs(entry.total_liters), 0)} L
-                                </span>
-                                {showPhotos && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setPhotoViewer({ urls: entry.photos.map((p) => p.download_url), index: 0 })}
-                                    title={`${entry.photos.length} foto`}
-                                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: "0 2px", opacity: 0.8 }}
-                                  >📷</button>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div style={{ fontSize: 12, color: "var(--muted)" }}>Belum ada data</div>
-                  )}
-                </div>
-              );
-            })}
+            ] as const).map(({ key, label, icon, accent, bg, textColor }) => (
+              <FuelStockCard
+                key={key}
+                keyName={key}
+                label={label}
+                icon={icon}
+                accent={accent}
+                bg={bg}
+                textColor={textColor}
+                data={fuelStock?.[key]}
+                solarEntries={fuelStock?.solar.entries ?? []}
+                isLoading={fuelStockQ.isLoading}
+                isError={!!fuelStockQ.error}
+                onShowPhotos={(urls) => setPhotoViewer({ urls, index: 0 })}
+              />
+            ))}
           </div>
 
           {logsQ.isLoading ? (
@@ -389,7 +328,7 @@ export default function HeavyEquipmentUsagePage() {
           ) : (
             <>
               <CostHistoryTable logs={logs} />
-              <BbmHistoryTable logs={logs} />
+              <BbmHistoryTable logs={logs} equipments={equipments} />
               <RawDataByActivity logs={logs} activityTypes={activityTypes} onSelectLog={setDetail} />
             </>
           )}
@@ -403,6 +342,122 @@ export default function HeavyEquipmentUsagePage() {
           initialIndex={photoViewer.index}
           onClose={() => setPhotoViewer(null)}
         />
+      )}
+    </div>
+  );
+}
+
+// ─── Data mentah: kartu stock BBM (Solar / Dex Lite / Pertadex) ────────────
+
+function FuelStockCard({
+  keyName,
+  label,
+  icon,
+  accent,
+  bg,
+  textColor,
+  data: d,
+  solarEntries,
+  isLoading,
+  isError,
+  onShowPhotos,
+}: {
+  keyName: "solar" | "dex_lite" | "pertadex";
+  label: string;
+  icon: string;
+  accent: string;
+  bg: string;
+  textColor: string;
+  data: FuelStockData | undefined;
+  solarEntries: FuelStockData["entries"];
+  isLoading: boolean;
+  isError: boolean;
+  onShowPhotos: (urls: string[]) => void;
+}) {
+  const [page, setPage] = useState(1);
+  const entries = d?.entries ?? [];
+  const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
+  const effectivePage = Math.min(page, totalPages);
+  const pageEntries = entries.slice((effectivePage - 1) * PAGE_SIZE, effectivePage * PAGE_SIZE);
+
+  return (
+    <div className="section-card glass" style={{ border: `1.5px solid ${accent}30`, padding: "16px 18px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{icon}</div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)" }}>Stock BBM</div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: textColor }}>{label}</div>
+        </div>
+      </div>
+      {isLoading ? (
+        <div style={{ fontSize: 12, color: "var(--muted)" }}>Memuat...</div>
+      ) : isError ? (
+        <div style={{ fontSize: 12, color: "var(--danger)" }}>Gagal memuat</div>
+      ) : d ? (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: keyName === "solar" ? "1fr 1fr 1fr" : "1fr 1fr", gap: 8, marginBottom: entries.length > 0 ? 12 : 0 }}>
+            <div style={{ background: bg, borderRadius: 8, padding: "10px 12px" }}>
+              <div style={{ fontSize: 11, color: textColor, fontWeight: 600, marginBottom: 2 }}>Diterima</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: textColor, fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.total_received, 0)} <span style={{ fontSize: 11, fontWeight: 600 }}>L</span></div>
+            </div>
+            {keyName === "solar" && (
+              <div style={{ background: "#fdecea", borderRadius: 8, padding: "10px 12px", border: "1px solid #f5aca640" }}>
+                <div style={{ fontSize: 11, color: "#8a2c25", fontWeight: 600, marginBottom: 2 }}>Digunakan</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#8a2c25", fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.total_used, 0)} <span style={{ fontSize: 11, fontWeight: 600 }}>L</span></div>
+              </div>
+            )}
+            <div style={{ background: accent + "15", borderRadius: 8, padding: "10px 12px", border: `1px solid ${accent}40` }}>
+              <div style={{ fontSize: 11, color: textColor, fontWeight: 600, marginBottom: 2 }}>Saldo</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: d.saldo < 0 ? "#cb5f45" : textColor, fontVariantNumeric: "tabular-nums" }}>{formatNumber(d.saldo, 0)} <span style={{ fontSize: 11, fontWeight: 600 }}>L</span></div>
+            </div>
+          </div>
+          {entries.length > 0 && (
+            <>
+              <div style={{ borderTop: `1px solid ${accent}20`, paddingTop: 10, display: "grid", gap: 5 }}>
+                {pageEntries.map((entry) => {
+                  const isUsage = entry.entry_type === "usage";
+                  const hasSolarSameDay = keyName === "dex_lite"
+                    ? solarEntries.some((s) => s.receipt_date === entry.receipt_date && s.kebun === entry.kebun)
+                    : false;
+                  const showPhotos = !isUsage && (keyName === "solar" || !hasSolarSameDay) && entry.photos.length > 0;
+                  const parts = isUsage
+                    ? "Pemakaian alat berat"
+                    : [
+                        entry.qty_20l && `${entry.qty_20l}×20L`,
+                        entry.qty_30l && `${entry.qty_30l}×30L`,
+                        entry.qty_35l && `${entry.qty_35l}×35L`,
+                        entry.qty_40l && `${entry.qty_40l}×40L`,
+                        entry.extra_liters && `sisa ${entry.extra_liters}L`,
+                      ].filter(Boolean).join(" · ");
+                  return (
+                    <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                      <span style={{ color: "var(--muted)", minWidth: 30, fontVariantNumeric: "tabular-nums" }}>
+                        {entry.receipt_date.slice(5).replace("-", "/")}
+                      </span>
+                      <span style={{ flex: 1, color: isUsage ? "#8a2c25" : "var(--text)", fontStyle: isUsage ? "italic" : "normal" }}>{parts}</span>
+                      <span style={{ fontWeight: 700, color: isUsage ? "#cb5f45" : textColor, fontVariantNumeric: "tabular-nums" }}>
+                        {isUsage ? "−" : "+"}{formatNumber(Math.abs(entry.total_liters), 0)} L
+                      </span>
+                      {showPhotos && (
+                        <button
+                          type="button"
+                          onClick={() => onShowPhotos(entry.photos.map((p) => p.download_url))}
+                          title={`${entry.photos.length} foto`}
+                          style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: "0 2px", opacity: 0.8 }}
+                        >📷</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {entries.length > PAGE_SIZE && (
+                <Pagination page={effectivePage} total={entries.length} limit={PAGE_SIZE} onChange={setPage} />
+              )}
+            </>
+          )}
+        </>
+      ) : (
+        <div style={{ fontSize: 12, color: "var(--muted)" }}>Belum ada data</div>
       )}
     </div>
   );
@@ -442,6 +497,11 @@ function CostHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
 
   const fmt = (v: number) => v > 0 ? formatNumber(v, 0) : "—";
 
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const effectivePage = Math.min(page, totalPages);
+  const pageRows = rows.slice((effectivePage - 1) * PAGE_SIZE, effectivePage * PAGE_SIZE);
+
   return (
     <div className="section-card glass" style={{ marginBottom: 18 }}>
       <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>Riwayat Biaya Harian</h4>
@@ -458,7 +518,7 @@ function CostHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ log, byItem, total }) => (
+              {pageRows.map(({ log, byItem, total }) => (
                 <tr key={log.id}>
                   <td style={{ fontSize: 12, whiteSpace: "nowrap" }}>{formatDate(log.log_date)}</td>
                   {items.map((it) => (
@@ -486,6 +546,9 @@ function CostHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
           </table>
         </div>
       )}
+      {rows.length > PAGE_SIZE && (
+        <Pagination page={effectivePage} total={rows.length} limit={PAGE_SIZE} onChange={setPage} />
+      )}
     </div>
   );
 }
@@ -500,11 +563,19 @@ function findBbmCost(costs: HeavyEquipmentLog["costs"]): number {
   return entry?.amount ?? 0;
 }
 
-function BbmHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
+function BbmHistoryTable({ logs, equipments }: { logs: HeavyEquipmentLog[]; equipments: HeavyEquipment[] }) {
+  // Alat vendor tidak dicatat pemakaian BBM-nya (bukan BBM milik perusahaan) —
+  // jangan tampilkan grupnya sama sekali di sini.
+  const vendorEquipmentIds = useMemo(
+    () => new Set(equipments.filter((e) => e.is_vendor_owned).map((e) => e.id)),
+    [equipments]
+  );
+
   const groups = useMemo(() => {
     const byEquip = new Map<string, { equipment: HeavyEquipmentLog["equipment"]; logs: HeavyEquipmentLog[] }>();
     logs.forEach((l) => {
       const eqId = l.equipment?.id ?? "?";
+      if (eqId !== "?" && vendorEquipmentIds.has(eqId)) return;
       if (!byEquip.has(eqId)) byEquip.set(eqId, { equipment: l.equipment ?? null, logs: [] });
       byEquip.get(eqId)!.logs.push(l);
     });
@@ -525,56 +596,17 @@ function BbmHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
           }, []),
       }))
       .sort((a, b) => (a.equipment?.code ?? "").localeCompare(b.equipment?.code ?? ""));
-  }, [logs]);
+  }, [logs, vendorEquipmentIds]);
 
   return (
     <div className="section-card glass" style={{ marginBottom: 18 }}>
-      <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>History Penggunaan BBM</h4>
+      <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--green-800)" }}>History Penggunaan BBM (Alat Berat Internal)</h4>
       {groups.length === 0 ? (
         <div className="empty-state">Belum ada data pada rentang ini.</div>
       ) : (
         <div style={{ display: "grid", gap: 16 }}>
           {groups.map(({ equipment, rows }) => (
-            <div key={equipment?.id ?? "?"}>
-              <div style={{ fontSize: 12, fontWeight: 500, color: "var(--muted)", marginBottom: 6 }}>
-                {equipment ? `${equipment.code} · ${equipment.type} · ${equipment.brand}` : "Alat tidak diketahui"}
-              </div>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Tanggal</th>
-                      <th style={{ textAlign: "right" }}>Harga/liter (Rp)</th>
-                      <th style={{ textAlign: "right" }}>Solar (L)</th>
-                      <th style={{ textAlign: "right" }}>Dex Lite (L)</th>
-                      <th style={{ textAlign: "right" }}>Pertadex (L)</th>
-                      <th style={{ textAlign: "right" }}>Biaya (Rp)</th>
-                      <th style={{ textAlign: "right" }}>Penggunaan s/d (L)</th>
-                      <th style={{ textAlign: "right" }}>Biaya s/d (Rp)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r) => {
-                      const hargaPerLiter = r.usage > 0 ? Math.round(r.cost / r.usage) : null;
-                      return (
-                        <tr key={r.date}>
-                          <td style={{ fontSize: 12, whiteSpace: "nowrap" }}>{formatDate(r.date)}</td>
-                          <td style={{ fontSize: 12, textAlign: "right" }}>
-                            {hargaPerLiter != null ? formatNumber(hargaPerLiter, 0) : "—"}
-                          </td>
-                          <td style={{ fontSize: 12, textAlign: "right" }}>{r.usageSolar > 0 ? formatNumber(r.usageSolar, 0) : "—"}</td>
-                          <td style={{ fontSize: 12, textAlign: "right" }}>{r.usageDexLite > 0 ? formatNumber(r.usageDexLite, 0) : "—"}</td>
-                          <td style={{ fontSize: 12, textAlign: "right" }}>{r.usagePertadex > 0 ? formatNumber(r.usagePertadex, 0) : "—"}</td>
-                          <td style={{ fontSize: 12, textAlign: "right" }}>{r.cost > 0 ? formatNumber(r.cost, 0) : "—"}</td>
-                          <td style={{ fontSize: 12, textAlign: "right" }}>{formatNumber(r.cumUsage, 0)}</td>
-                          <td style={{ fontSize: 12, textAlign: "right" }}>{r.cumCost > 0 ? formatNumber(r.cumCost, 0) : "—"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <BbmEquipmentGroupTable key={equipment?.id ?? "?"} equipment={equipment} rows={rows} />
           ))}
         </div>
       )}
@@ -582,9 +614,62 @@ function BbmHistoryTable({ logs }: { logs: HeavyEquipmentLog[] }) {
   );
 }
 
-// ─── Data mentah: satu tabel per jenis pekerjaan ───────────────────────────
+type BbmUsageRow = { date: string; usageSolar: number; usageDexLite: number; usagePertadex: number; usage: number; cost: number; cumUsage: number; cumCost: number };
 
-const RAW_DATA_PAGE_SIZE = 20;
+function BbmEquipmentGroupTable({ equipment, rows }: { equipment: HeavyEquipmentLog["equipment"]; rows: BbmUsageRow[] }) {
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const effectivePage = Math.min(page, totalPages);
+  const pageRows = rows.slice((effectivePage - 1) * PAGE_SIZE, effectivePage * PAGE_SIZE);
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, fontWeight: 500, color: "var(--muted)", marginBottom: 6 }}>
+        {equipment ? `${equipment.code} · ${equipment.type} · ${equipment.brand}` : "Alat tidak diketahui"}
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Tanggal</th>
+              <th style={{ textAlign: "right" }}>Harga/liter (Rp)</th>
+              <th style={{ textAlign: "right" }}>Solar (L)</th>
+              <th style={{ textAlign: "right" }}>Dex Lite (L)</th>
+              <th style={{ textAlign: "right" }}>Pertadex (L)</th>
+              <th style={{ textAlign: "right" }}>Biaya (Rp)</th>
+              <th style={{ textAlign: "right" }}>Penggunaan s/d (L)</th>
+              <th style={{ textAlign: "right" }}>Biaya s/d (Rp)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pageRows.map((r) => {
+              const hargaPerLiter = r.usage > 0 ? Math.round(r.cost / r.usage) : null;
+              return (
+                <tr key={r.date}>
+                  <td style={{ fontSize: 12, whiteSpace: "nowrap" }}>{formatDate(r.date)}</td>
+                  <td style={{ fontSize: 12, textAlign: "right" }}>
+                    {hargaPerLiter != null ? formatNumber(hargaPerLiter, 0) : "—"}
+                  </td>
+                  <td style={{ fontSize: 12, textAlign: "right" }}>{r.usageSolar > 0 ? formatNumber(r.usageSolar, 0) : "—"}</td>
+                  <td style={{ fontSize: 12, textAlign: "right" }}>{r.usageDexLite > 0 ? formatNumber(r.usageDexLite, 0) : "—"}</td>
+                  <td style={{ fontSize: 12, textAlign: "right" }}>{r.usagePertadex > 0 ? formatNumber(r.usagePertadex, 0) : "—"}</td>
+                  <td style={{ fontSize: 12, textAlign: "right" }}>{r.cost > 0 ? formatNumber(r.cost, 0) : "—"}</td>
+                  <td style={{ fontSize: 12, textAlign: "right" }}>{formatNumber(r.cumUsage, 0)}</td>
+                  <td style={{ fontSize: 12, textAlign: "right" }}>{r.cumCost > 0 ? formatNumber(r.cumCost, 0) : "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {rows.length > PAGE_SIZE && (
+        <Pagination page={effectivePage} total={rows.length} limit={PAGE_SIZE} onChange={setPage} />
+      )}
+    </div>
+  );
+}
+
+// ─── Data mentah: satu tabel per jenis pekerjaan ───────────────────────────
 
 function RawDataByActivity({
   logs,
@@ -617,9 +702,9 @@ function RawDataByActivity({
   return (
     <div style={{ display: "grid", gap: 18 }}>
       {tables.map(({ actType, rows }) => {
-        const totalPages = Math.max(1, Math.ceil(rows.length / RAW_DATA_PAGE_SIZE));
+        const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
         const page = Math.min(pages[actType.code] ?? 1, totalPages);
-        const pageRows = rows.slice((page - 1) * RAW_DATA_PAGE_SIZE, page * RAW_DATA_PAGE_SIZE);
+        const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
         const setPage = (p: number) => setPages((prev) => ({ ...prev, [actType.code]: p }));
 
         return (
@@ -702,8 +787,8 @@ function RawDataByActivity({
               </table>
             </div>
           )}
-          {rows.length > RAW_DATA_PAGE_SIZE && (
-            <Pagination page={page} total={rows.length} limit={RAW_DATA_PAGE_SIZE} onChange={setPage} />
+          {rows.length > PAGE_SIZE && (
+            <Pagination page={page} total={rows.length} limit={PAGE_SIZE} onChange={setPage} />
           )}
         </div>
         );
